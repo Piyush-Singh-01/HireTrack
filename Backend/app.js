@@ -39,13 +39,10 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 dns.setServers(["8.8.8.8"]);
 const rawAllowedOrigins = [
+  "https://hire-track-delta-three.vercel.app",
   "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-  "http://localhost:3000",
   process.env.FRONTEND_URL,
   process.env.CLIENT_URL,
-  "https://techjose-talentos.techjose.com",
 ];
 
 const allowedOrigins = rawAllowedOrigins
