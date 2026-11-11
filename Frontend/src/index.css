@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primaryLite: #3B82F6;
+  --color-secondaryLite: #FBBF24;
+  --color-blue: #324371;
+  --color-gray: #F0F2F5;
+  --color-lightgreen: #C4FFBD;
+  --color-green: #0F9900;
+  --color-pink: #FFBDBD;
+  --color-red: #FF0000;
+  --color-black: #120D1C;
+  --color-white: #FFFFFF;
+  --color-DarkCyanBlue: #16799F;
+  --color-LoginBlue: #A3CCFF40;
+ 
+}
+
+/* hide scrollbar but allow scroll */
+.hide-scrollbar {
+  -ms-overflow-style: none;     /* IE & Edge */
+  scrollbar-width: none;        /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;                /* Chrome, Safari */
+}
+
+/* Hide browser's default password reveal button to prevent "two eye" issue */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none;
+}
+
+/* For Chrome/Edge/Safari */
+input[type="password"]::-webkit-caps-lock-indicator,
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+/* Additional fix for modern browsers */
+input[type="password"]::-webkit-outer-spin-button,
+input[type="password"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide the password reveal icon in Edge/Chrome */
+input[type="password"]::-webkit-reveal-password {
+  display: none;
+}
+
+/* Firefox specific */
+input[type="password"]::-moz-reveal-password {
+  display: none;
+}
+
+/* Hide number input spinners for no-spinner class */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+.no-spinner {
+  -moz-appearance: textfield !important; /* Firefox */
+}
+
+/* Placeholder for contentEditable */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af; /* Tailwind gray-400 */
+  cursor: text;
+}
+
+/* Micro-animations for modals, dropdowns, and tooltips */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

@@ -1,0 +1,14 @@
+export const RECOMMENDATION = Object.freeze({
+    STRONG_MATCH: "STRONG_MATCH",
+    MATCH: "MATCH",
+    REVIEW: "REVIEW",
+    WEAK_MATCH: "WEAK_MATCH",
+    REJECT: "REJECT",
+});
+
+export const ANALYSIS_STATUS = Object.freeze({
+    PENDING: "PENDING",
+    PROCESSING: "PROCESSING",
+    COMPLETED: "COMPLETED",
+    FAILED: "FAILED",
+});

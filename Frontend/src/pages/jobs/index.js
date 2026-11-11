@@ -1,0 +1,13 @@
+export { default as JobPostPage } from "./JobPostPage";
+export { default as EditJobPostPage } from "./EditJobPostPage";
+export { default as JobDetailsPage } from "./JobDetailsPage";
+export { default as DraftsPage } from "./DraftsPage";
+export { default as JobApplicationPage } from "./JobApplicationPage";
+export { default as CreateApplicationPage } from "./CreateApplicationPage";
+export { default as CreateApplicationPage2 } from "./CreateApplicationPage2";
+export { default as ScreeningPage } from "./ScreeningPage";
+export { default as ScreeningPerModulePage } from "./ScreeningPerModulePage";
+export { default as MainApplicationPage } from "./MainApplicationPage";
+export { default as ModuleSelectionPage } from "./ModuleSelectionPage";
+export { default as CreateTaskPage } from "./CreateTaskPage";
+export { default as CandidateApplicationPage } from "./CandidateApplicationPage";
