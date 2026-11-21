@@ -17,14 +17,13 @@ const router = express.Router();
 //   limits: { fileSize: 5 * 1024 * 1024 }, // optional
 // });
 
-/* ---------- Application Handling ---------- */
+//  Application Handling
 router.post("/",createApplication);       
 router.delete("/:id",protect, allAccess, deleteApplication);
-router.get("/all", protect, allAccess, getAllApplications);    //new      
+router.get("/all", protect, allAccess, getAllApplications);       
 
-/* ---------- Resume Upload ---------- */
-router.post(
-  "/upload-pdf/:slug",upload.single("file"), uploadPdf);
+//  Resume Upload 
+router.post("/upload-pdf/:slug",upload.single("file"), uploadPdf);
 
 export default router;
 

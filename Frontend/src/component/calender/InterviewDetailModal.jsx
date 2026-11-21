@@ -1,25 +1,8 @@
 import React, { useState } from "react";
-import {
-  CalendarDays,
-  Clock,
-  Video,
-  X,
-  Copy,
-  Check,
-  ExternalLink,
-} from "lucide-react";
+import {CalendarDays, Clock, Video, X, Copy, Check,ExternalLink} from "lucide-react";
 import { useToast } from "../../utils/ToastContext";
 
-/**
- * InterviewDetailModal Component
- * 
- * Displays detailed information when a recruiter clicks an interview on the calendar:
- * 1. Candidate Name, Job Position, and Interview Type badge
- * 2. Scheduled Date, Time, and Duration
- * 3. Meeting Mode (Online Video vs In-Person) and Host Recruiter
- * 4. Video Meeting URL with one-click Copy button
- * 5. Direct "Join Video Call" action button
- */
+
 const InterviewDetailModal = ({ event, onClose }) => {
   const { showToast } = useToast();
   const [copiedLink, setCopiedLink] = useState(false);

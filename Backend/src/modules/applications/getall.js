@@ -14,10 +14,10 @@ const getCandidatesByJobAndStatus = async (req, res) => {
     }
 
     const { jobId } = req.params;
+
     let { status, page = 1, limit = 1000 } = req.query;
 
-    /* ---------- VALIDATION ---------- */
-
+    // VALIDATION
     if (!mongoose.Types.ObjectId.isValid(jobId)) {
       return res.status(400).json({
         success: false,
@@ -31,18 +31,15 @@ const getCandidatesByJobAndStatus = async (req, res) => {
     limit = Math.min(Math.max(parseInt(limit), 1), 1000);
     const skip = (page - 1) * limit;
 
-    /* ---------- APPLICATION FILTER ---------- */
+    //  APPLICATION FILTER 
 
-    const filter = {
-      jobId: jobObjectId,
-      companyCode,
-    };
+    const filter = {jobId: jobObjectId, companyCode};
 
     if (status) {
       filter.profileStatus = status;
     }
 
-    /* ---------- FETCH APPLICATIONS ---------- */
+    //  FETCH APPLICATIONS 
 
     const applications = await Application.find(filter)
       .populate("candidateId", "name email mobile")
@@ -69,21 +66,21 @@ const getCandidatesByJobAndStatus = async (req, res) => {
       });
     }
 
-    /* ---------- GET APPLICATION IDS ---------- */
+    //  GET APPLICATION IDS 
 
     const applicationIds = applications.map((app) => app._id);
 
-    /* ---------- FETCH INTERVIEW SCHEDULES ---------- */
+    // FETCH INTERVIEW SCHEDULES 
 
     const schedules = await InterviewSchedule.find({
       jobId: jobObjectId,
       companyCode,
-      candidateIds: { $in: applicationIds }, // ✅ correct field
+      candidateIds: { $in: applicationIds },
     })
       .sort({ updatedAt: -1 })
       .lean();
 
-    /* ---------- CREATE FAST LOOKUP MAP ---------- */
+    //  CREATE FAST LOOKUP MAP 
 
     const scheduleMap = new Map();
 
@@ -99,7 +96,7 @@ const getCandidatesByJobAndStatus = async (req, res) => {
       }
     }
 
-    /* ---------- BUILD RESPONSE ---------- */
+    //  BUILD RESPONSE 
 
     const candidates = applications.map((app) => {
       const schedule = scheduleMap.get(String(app._id)) || null;
@@ -157,7 +154,7 @@ const getCandidatesByJobAndStatus = async (req, res) => {
       };
     });
 
-    /* ---------- FINAL RESPONSE ---------- */
+    //  FINAL RESPONSE 
 
     res.status(200).json({
       success: true,

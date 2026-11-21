@@ -14,7 +14,7 @@ const getAllApplications = async (req, res) => {
 
     const { id, jobId, status } = req.query;
 
-    /* ---------------- GET SINGLE ---------------- */
+    //  GET SINGLE 
     if (id) {
       if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({
@@ -23,10 +23,7 @@ const getAllApplications = async (req, res) => {
         });
       }
 
-      const application = await Application.findOne({
-        _id: id,
-        companyCode,
-      })
+      const application = await Application.findOne({_id: id, companyCode})
         .populate("candidateId", "name email mobile")
         .populate("jobId", "jobTitle department")
         .populate("formId", "fields title")
@@ -39,13 +36,10 @@ const getAllApplications = async (req, res) => {
         });
       }
 
-      return res.status(200).json({
-        success: true,
-        data: application,
-      });
-    }
+      return res.status(200).json({success: true, data: application});
+}
 
-    /* ---------------- GET ALL ---------------- */
+    //  GET ALL 
     const filter = { companyCode };
 
     if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
@@ -54,7 +48,7 @@ const getAllApplications = async (req, res) => {
 
     if (status) {
       filter.profileStatus = status;
-    }
+}
 
     const applications = await Application.find(filter)
       .populate("candidateId", "name email mobile")

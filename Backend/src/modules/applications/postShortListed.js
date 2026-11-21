@@ -5,10 +5,7 @@ import Candidate from "../interviews/candidateInterview.model.js";
 import { sendEmail} from "../../common/utils/emailService.js";
 import { MailTemplates } from "../../common/utils/mailTemaplate.js";
 import userModel from "../users/user.model.js";
-/**
- * POST /shortlist/:jobId
- * Shortlist an application for a job
- */
+
 const postShortListed = async (req, res) => {
   try {
     const companyCode = req.user.companyCode?.trim().toUpperCase();
@@ -21,9 +18,7 @@ const postShortListed = async (req, res) => {
     } = req.body;
 
 
-    // -------------------------
     // Validation
-    // -------------------------
     if (!applicationId) {
       return res.status(400).json({
         success: false,
@@ -45,14 +40,8 @@ const postShortListed = async (req, res) => {
       });
     }
 
-    // -------------------------
     // Validate job (published)
-    // -------------------------
-    const job = await Job.findOne({ 
-      _id: jobId, 
-      isDraft: false,
-      companyCode // ✅ ADDED
-    });
+    const job = await Job.findOne({_id: jobId, isDraft: false, companyCode });
 
     if (!job) {
       const jobExists = await Job.findOne({ _id: jobId });
@@ -62,21 +51,12 @@ const postShortListed = async (req, res) => {
           message: `You do not have access to this job (companyCode mismatch)`,
         });
       } else {
-        return res.status(404).json({
-          success: false,
-          message: "Job not found",
-        });
+        return res.status(404).json({success: false, message: "Job not found"});
       }
     }
 
-    // -------------------------
     // Find application
-    // -------------------------
-    const application = await Application.findOne({
-      _id: applicationId,
-      jobId,
-      companyCode // ✅ ADDED
-    });
+    const application = await Application.findOne({ _id: applicationId, jobId, companyCode});
 
     if (!application) {
       return res.status(404).json({
@@ -85,9 +65,7 @@ const postShortListed = async (req, res) => {
       });
     }
 
-    // -------------------------
     // Status guards
-    // -------------------------
     if (application.profileStatus === "shortlisted") {
       return res.status(400).json({
         success: false,
@@ -109,18 +87,14 @@ const postShortListed = async (req, res) => {
       });
     }
 
-    // -------------------------
     // Fetch candidate identity
-    // -------------------------
     const candidate = await Candidate.findById(
       application.candidateId
     ).lean();
 
     const previousStatus = application.profileStatus;
 
-    // -------------------------
     // Update application
-    // -------------------------
     application.profileStatus = "shortlisted";
     application.candidateRating = "Good fit";
 
@@ -141,43 +115,34 @@ const postShortListed = async (req, res) => {
     }
 
     await application.save({ validateBeforeSave: false });
-    // -------------------------
 // Send Email Notification
-// -------------------------
-try {
-  if (candidate?.email) {
-    // 🔥 Get organization (tenant)
-    const adminUser = await userModel.findOne({
-      companyCode,
-      role: "SuperAdmin",
-    }).lean();
+    try {
+      if (candidate?.email) {
+        const adminUser = await userModel.findOne({companyCode, role: "SuperAdmin"}).lean();
 
-    // 🔥 Generate template
-    const template = MailTemplates.shortlisted({
-      candidateName: candidate?.name,
-      job,
-      hiringManagerNotes,
-      organizationName: adminUser?.organizationName,
-      businessEmail: adminUser?.businessEmail,
-      logo: adminUser?.companyLogo,
-      reason, // optional (if you want to show)
-    });
+        const template = MailTemplates.shortlisted({
+          candidateName: candidate?.name,
+          job,
+          hiringManagerNotes,
+          organizationName: adminUser?.organizationName,
+          businessEmail: adminUser?.businessEmail,
+          logo: adminUser?.companyLogo,
+          reason, 
+        });
 
-    // 🔥 Send email
-    await sendEmail({
-      companyCode,
-      to: candidate.email,
-      bcc: template.bcc,
-      subject: template.subject,
-      html: template.html,
-    });
-  }
-} catch (emailError) {
-  console.error("Email sending failed:", emailError.message);
-}
-    // -------------------------
-    // Response
-    // -------------------------
+        // 🔥 Send email
+        await sendEmail({
+          companyCode,
+          to: candidate.email,
+          bcc: template.bcc,
+          subject: template.subject,
+          html: template.html,
+        });
+      }
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError.message);
+    }
+    
     return res.status(200).json({
       success: true,
       message: "Candidate shortlisted successfully",

@@ -14,23 +14,20 @@ const loginController = async (req, res) => {
       });
     }
 
-    /* ================= USER LOGIN ================= */
+    // USER LOGIN 
 
     const user = await User.findOne({ businessEmail });
 
     if (user) {
-      if (!user.isVerified) {
-        return res.status(401).json({
-          success: false,
-          message: "Please verify your email",
-        });
-      }
+      // if (!user.isVerified) {
+      //   return res.status(401).json({
+      //     success: false,
+      //     message: "Please verify your email",
+      //   });
+      // }
 
       if (!user.password) {
-        return res.status(500).json({
-          success: false,
-          message: "User password not set",
-        });
+        return res.status(500).json({success: false, message: "User password not set"});
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
@@ -61,7 +58,7 @@ const loginController = async (req, res) => {
         { expiresIn: "7d" }
       );
 
-      // ✅ SET COOKIE
+      // SET COOKIE
       res.cookie("accessToken", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -99,11 +96,9 @@ const loginController = async (req, res) => {
       });
     }
 
-    /* ================= USER & ROLE LOGIN ================= */
+    // USER & ROLE LOGIN
 
-    const userandrole = await UserAndRole.findOne({
-      Email: businessEmail,
-    });
+    const userandrole = await UserAndRole.findOne({Email: businessEmail});
 
     if (!userandrole) {
       return res.status(404).json({
@@ -164,7 +159,7 @@ const loginController = async (req, res) => {
         { expiresIn: "7d" }
       );
 
-      // ✅ SET COOKIE
+      // SET COOKIE
       res.cookie("accessToken", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",

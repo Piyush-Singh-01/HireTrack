@@ -1,20 +1,15 @@
 import Job from "../jobs/job.model.js";
 import mongoose from "mongoose";
 
-/**
- * @route GET /api/positions/job-description/:jobId
- * @desc Get job description details by job ID (published jobs only)
- * @access Public
- */
+
 const getJobDescriptionById = async (req, res) => {
   try {
     const { jobId } = req.params;
 
-    const companyCode = req.user?.companyCode; // ✅ ADDED (safe optional access)
+    const companyCode = req.user?.companyCode;
 
-    // -------------------------
     // Validate jobId
-    // -------------------------
+
     if (!mongoose.Types.ObjectId.isValid(jobId)) {
       return res.status(400).json({
         success: false,
@@ -23,9 +18,8 @@ const getJobDescriptionById = async (req, res) => {
       });
     }
 
-    // -------------------------
     // Fetch published job only
-    // -------------------------
+
     const job = await Job.findById(jobId)
       .populate("formId")
       .populate("screeningId")
@@ -72,6 +66,7 @@ const getJobDescriptionById = async (req, res) => {
     const screeningQuestionsMap = new Map();
     
     // 1. From Form (isScreening fields)
+
     if (job.formId?.fields) {
       job.formId.fields.forEach(field => {
         if (field.meta?.isScreening) {
@@ -93,8 +88,8 @@ const getJobDescriptionById = async (req, res) => {
         if (!screeningQuestionsMap.has(q.fieldId)) {
           screeningQuestionsMap.set(q.fieldId, {
             fieldId: q.fieldId,
-            label: q.question, // Map 'question' to 'label' for consistency
-            options: q.choices, // Map 'choices' to 'options' for consistency
+            label: q.question, 
+            options: q.choices, 
             type: q.type,
             required: q.required,
             source: 'screening'

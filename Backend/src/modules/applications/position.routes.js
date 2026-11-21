@@ -19,34 +19,27 @@ import { allAccess } from "../../common/middleware/role.js";
 const router = express.Router();
 
 
-router.use((req, res, next) => {
-  // console.log(`[PositionRouter] ${req.method} ${req.url}`);
-  next();
-});
+router.use((req, res, next) => {next()});
 
-// ==========================================
 // DIRECT ROUTES (HIGH PRIORITY)
-// ==========================================
 router.get("/analytics-overview", protect, allAccess, getPositionOverview);
 router.get("/jobs", protect, allAccess, getJobs);
 
 // Candidate status & feedback
 router.post("/:jobId/status", protect, allAccess, updateCandidateStatus);
 router.post("/:jobId/feedback", protect, allAccess, postFeedbackByJob);
+
 // Scheduling
 router.post("/:jobId/schedule", protect, allAccess, postScheduleByJob);
 router.post("/:jobId/gd/schedule", protect, allAccess, postGDScheduleByJob);
 router.post("/:jobId/onhold", protect, allAccess, postOnHoldStatusByJob);
 router.put("/:jobId/reschedule", protect, allAccess, putRescheduleByJob);
+
 // Candidate listing
 router.get("/:jobId/all", protect, allAccess, getCandidatesByJobAndStatus);
 
-// ==========================================
 // SUB-ROUTERS
-// ==========================================
-// router.use("/analytics", protect, allAccess, analyticsRoutes);
 router.use("/job-description", protect, allAccess, jobDescriptionRoutes);
-// router.use("/jobs-list", protect, allAccess, jobsRoutes);
 router.use("/schedule", protect, allAccess, scheduleRoutes);
 
 // Catch-all for job details

@@ -1,9 +1,5 @@
 import Application from "./applicantSchema.js";
 
-/**
- * Get count of candidates hired in the current month
- * GET /api/applications/hired-this-month/count
- */
 const getHiredThisMonthCount = async (req, res) => {
   try {
     const companyCode = req.user?.companyCode;
@@ -32,7 +28,7 @@ const getHiredThisMonthCount = async (req, res) => {
     );
 
     const hiredThisMonthCount = await Application.countDocuments({
-      companyCode,                      // ✅ Tenant isolation (critical)
+      companyCode,                      
       profileStatus: "hired",
       "hiringDetails.hiredOn": {
         $gte: startOfMonth,

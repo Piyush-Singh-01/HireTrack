@@ -13,10 +13,7 @@ const averageTimeToHire = async (req, res) => {
 
     const result = await calculateAverageTimeToHire(companyCode);
 
-    res.json({
-      success: true,
-      averageTimeToHire: result.formatted,
-    });
+    res.json({success: true, averageTimeToHire: result.formatted});
 
   } catch (err) {
     console.error("Error calculating average time to hire:", err);

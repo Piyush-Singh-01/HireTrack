@@ -11,10 +11,6 @@ import {
   RejectConfirmModal,
 } from "./DashboardModals";
 
-/**
- * Presentational Component for the Recruitment Dashboard.
- * Assembles header, stats, schedule, analytics, and modals together cleanly.
- */
 const Dashboard = ({
   toast,
   greeting,

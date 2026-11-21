@@ -23,14 +23,9 @@ import {
 const hours = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
 const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
 
-/**
- * Start Interview Confirmation Dialog
- */
-export const StartInterviewModal = ({
-  isOpen = false,
-  onClose,
-  onConfirm,
-}) => {
+
+export const StartInterviewModal = ({isOpen = false, onClose, onConfirm}) => {
+
   if (!isOpen) return null;
 
   return (
@@ -66,9 +61,8 @@ export const StartInterviewModal = ({
   );
 };
 
-/**
- * Candidate / Applicant Details Dialog
- */
+  // Candidate / Applicant Details Dialog
+
 export const ApplicantDetailsModal = ({
   isOpen = false,
   applicant = null,
@@ -239,9 +233,8 @@ export const ApplicantDetailsModal = ({
   );
 };
 
-/**
- * Reschedule Interview Dialog
- */
+//  Reschedule Interview Dialog
+
 export const RescheduleModal = ({
   isOpen = false,
   applicant = null,
@@ -392,16 +385,10 @@ export const RescheduleModal = ({
   );
 };
 
-/**
- * Candidate Rejection Dialog
- */
-export const RejectConfirmModal = ({
-  isOpen = false,
-  applicant = null,
-  onClose,
-  onConfirm,
-  isRejecting = false,
-}) => {
+//  Candidate Rejection Dialog
+
+export const RejectConfirmModal = ({isOpen = false, applicant = null, onClose, onConfirm, isRejecting = false,}) => {
+
   if (!isOpen) return null;
 
   return (

@@ -190,6 +190,7 @@ const Login = ({
                 </label>
                 <Link
                   to="/forgotpassword"
+                  state={{ fromLogin: true }}
                   className="text-blue-600 hover:text-blue-800 font-semibold transition hover:underline"
                 >
                   Forgot password?

@@ -1,16 +1,11 @@
 import mongoose from "mongoose";
 import Application from "./applicantSchema.js";
 
-/**
- * Get applications count
- * GET /api/applications/count
- * Optional query params: jobId, status
- */
 const getApplicationsCount = async (req, res) => {
   try {
     const { jobId, status } = req.query;
 
-    const companyCode = req.user?.companyCode;   // ✅ CRITICAL
+    const companyCode = req.user?.companyCode;  
 
     if (!companyCode) {
       return res.status(401).json({
@@ -19,7 +14,7 @@ const getApplicationsCount = async (req, res) => {
       });
     }
 
-    const filter = { companyCode };              // ✅ Tenant isolation
+    const filter = { companyCode };           
 
     // Optional job filter
     if (jobId) {

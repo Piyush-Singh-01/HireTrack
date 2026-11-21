@@ -2,10 +2,6 @@ import React from "react";
 import { Sparkles } from "lucide-react";
 import { FiCalendar } from "react-icons/fi";
 
-/**
- * Dashboard Header Hero Banner.
- * Displays portal badge, greeting, today's date, and period filter pills.
- */
 const DashboardHeader = ({
   greeting = "Welcome",
   todayLabel = "",

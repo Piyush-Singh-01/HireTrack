@@ -7,16 +7,15 @@ import Candidate from "../interviews/candidateInterview.model.js";
 import validator from "validator";
 import { createApplicantNotification } from "../../common/utils/notifications.js";
 import userModel from "../users/user.model.js";
-import { sendEmail } from "../../common/utils/emailService.js"; // make sure added
+import { sendEmail } from "../../common/utils/emailService.js"; 
 import { MailTemplates } from "../../common/utils/mailTemaplate.js";
 
 const createApplication = async (req, res) => {
   try {
     const { jobId, formId, answers, termsAccepted, consent = true } = req.body;
 
-    // -------------------------
     // BASIC VALIDATIONS
-    // -------------------------
+
     if (!jobId || !formId || !answers || typeof answers !== "object") {
       return res.status(400).json({
         success: false,
@@ -38,9 +37,7 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // -------------------------
     // JOB & FORM CHECK
-    // -------------------------
     const job = await Job.findById(jobId);
     if (!job) {
       return res.status(404).json({
@@ -59,9 +56,8 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // -------------------------
     // CANDIDATE FIND OR CREATE
-    // -------------------------
+
     const email = answers.email ? String(answers.email).toLowerCase().trim() : null;
     if (!email || !validator.isEmail(email)) {
       return res.status(400).json({
@@ -70,7 +66,8 @@ const createApplication = async (req, res) => {
       });
     }
 
-    const name = `${answers?.firstName || ""} ${answers?.middleName || ""} ${answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() || answers.full_name || answers.name || "";
+    const name = `${answers?.firstName || ""} ${answers?.middleName || ""} ${answers?.lastName || ""}`
+                 .replace(/\s+/g, ' ').trim() || answers.full_name || answers.name || "";
 
     let candidate = await Candidate.findOne({ email, companyCode });
     if (!candidate) {
@@ -83,9 +80,7 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // -------------------------
     // REQUIRED FIELD VALIDATION
-    // -------------------------
     for (const field of form.fields) {
       if (field.required && (answers[field.fieldId] === undefined || answers[field.fieldId] === "")) {
         return res.status(400).json({
@@ -95,9 +90,7 @@ const createApplication = async (req, res) => {
       }
     }
 
-    // -------------------------
     // DUPLICATE APPLICATION CHECK
-    // -------------------------
     const existingApplication = await Application.findOne({
       jobId,
       candidateId: candidate._id,
@@ -111,9 +104,7 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // -------------------------
     // SCREENING EVALUATION
-    // -------------------------
     let screeningResult = {
       totalScore: 0,
       maxScore: 0,
@@ -126,17 +117,17 @@ const createApplication = async (req, res) => {
     let candidateRating = null;
 
     if (job.screeningId) {
-      console.log("=== SCREENING DEBUG ===");
-      console.log("job.screeningId:", job.screeningId);
+      // console.log(" SCREENING DEBUG");
+      // console.log("job.screeningId:", job.screeningId);
       const screeningDoc = await Screening.findOne({ _id: job.screeningId, companyCode });
-      console.log("screeningDoc found:", !!screeningDoc);
-      console.log("screeningDoc questions:", screeningDoc?.screen?.length, "questions");
+      // console.log("screeningDoc found:", !!screeningDoc);
+      // console.log("screeningDoc questions:", screeningDoc?.screen?.length, "questions");
       if (screeningDoc) {
-        console.log("Question fieldIds:", screeningDoc.screen.map(q => q.fieldId));
-        console.log("Question correctAnswers:", screeningDoc.screen.map(q => ({ fieldId: q.fieldId, type: q.type, correctAnswer: q.correctAnswer })));
-        console.log("Answer keys:", Object.keys(answers));
+        // console.log("Question fieldIds:", screeningDoc.screen.map(q => q.fieldId));
+        // console.log("Question correctAnswers:", screeningDoc.screen.map(q => ({ fieldId: q.fieldId, type: q.type, correctAnswer: q.correctAnswer })));
+        // console.log("Answer keys:", Object.keys(answers));
         const result = screeningDoc.validateAnswersAndRate(answers);
-        console.log("Scoring result:", JSON.stringify(result, null, 2));
+        // console.log("Scoring result:", JSON.stringify(result, null, 2));
         candidateRating = result.candidateRating || null;
 
         const derivedStatus =
@@ -157,7 +148,7 @@ const createApplication = async (req, res) => {
         if (derivedStatus === "failed") {
           applicationStatus = "rejected";
 
-          // 🔹 Send rejection mail (non-blocking)
+          //  Send rejection mail (non-blocking)
           (async () => {
             try {
               const adminUser = await userModel.findOne({ companyCode });
@@ -192,9 +183,8 @@ const createApplication = async (req, res) => {
       console.log("=== NO SCREENING: job.screeningId is", job.screeningId, "===");
     }
 
-    // -------------------------
     // CREATE APPLICATION
-    // -------------------------
+
     const newApplication = await Application.create({
       jobId,
       formId,
@@ -208,9 +198,8 @@ const createApplication = async (req, res) => {
       companyCode,
     });
 
-    // -------------------------
     // UPDATE JOB APPLICANT COUNT
-    // -------------------------
+
     await Job.updateOne(
       { _id: jobId },
       { $inc: { applicantsCount: 1 } }

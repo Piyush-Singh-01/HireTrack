@@ -8,7 +8,6 @@ import { allAccess } from "../../common/middleware/role.js";
 
 const router = express.Router();
 
-// ============ SCHEDULE MANAGEMENT ROUTES ============
 
 // Interview Scheduling Operations
 router.post("/:jobId/schedule", protect, allAccess, postScheduleByJob);

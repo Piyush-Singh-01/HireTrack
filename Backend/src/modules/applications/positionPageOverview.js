@@ -1,14 +1,8 @@
-// controller/positionDashboardController.js
-
 import mongoose from "mongoose";
 import Job from "../jobs/job.model.js";
 import Application from "./applicantSchema.js";
 
-import {
-  getCompanyCode,
-  getCurrentMonthRange,
-  calculateAverageTimeToHire,
-} from "../../common/utils/analytics.js";
+import {getCompanyCode, getCurrentMonthRange, calculateAverageTimeToHire} from "../../common/utils/analytics.js";
 
 const getPositionOverview = async (req, res) => {
   try {
@@ -52,28 +46,15 @@ const getPositionOverview = async (req, res) => {
       totalApplications,
       hiredThisMonth,
       averageHireTime,
-    ] = await Promise.all([
-      Job.countDocuments({
-        companyCode,
-        isDraft: false,
-      }),
+    ] = await Promise.all([ Job.countDocuments({companyCode, isDraft: false,}),
 
-      Job.countDocuments({
-        companyCode,
-        isDraft: false,
-        jobStatus: "Open",
-      }),
+      Job.countDocuments({companyCode, isDraft: false, jobStatus: "Open"}),
 
-      Job.countDocuments({
-        companyCode,
-        isDraft: false,
-        jobStatus: "Closed",
-      }),
+      Job.countDocuments({ companyCode, isDraft: false, jobStatus: "Closed",}),
 
       Application.countDocuments(applicationFilter),
 
-      Application.countDocuments({
-        companyCode,
+      Application.countDocuments({companyCode,
         profileStatus: "hired",
         "hiringDetails.hiredOn": {
           $gte: startOfMonth,
@@ -84,8 +65,7 @@ const getPositionOverview = async (req, res) => {
       calculateAverageTimeToHire(companyCode),
     ]);
 
-    return res.status(200).json({
-      success: true,
+    return res.status(200).json({success: true,
 
       summary: {
         totalPositions,
@@ -95,23 +75,15 @@ const getPositionOverview = async (req, res) => {
         hiredThisMonth,
       },
 
-      metrics: {
-        averageTimeToHire:
-          averageHireTime.formatted,
-      },
+      metrics: {averageTimeToHire: averageHireTime.formatted},
 
-      filtersApplied: {
-        jobId: jobId || null,
-        status: status || "All",
-      },
+      filtersApplied: { jobId: jobId || null, status: status || "All"},
 
       month: monthLabel,
     });
   } catch (error) {
-    console.error(
-      "Error fetching position dashboard:",
-      error
-    );
+
+    console.error("Error fetching position dashboard:", error);
 
     return res.status(500).json({
       success: false,

@@ -10,16 +10,6 @@ import { useAnalytics } from "../../hooks/useAnalytics";
 import { useViewApplicants } from "../../hooks/useViewApplicants";
 import Dashboard from "../../component/dashboard/Dashboard";
 
-/**
- * DashboardPage Component (Route: "/dashboard")
- *
- * Page Controller for the main Recruitment Dashboard:
- * - Sets document title
- * - Coordinates data fetching with useDashboardInfo and useAnalytics hooks
- * - Handles interview actions (start, reject, reschedule)
- * - Manages modal lifecycle and feedback toasts
- * - Delegates pure UI rendering to the Dashboard presentational component
- */
 const DashboardPage = () => {
   const [position, setPosition] = useState("All Positions");
   const [selected, setSelected] = useState("Sort By");

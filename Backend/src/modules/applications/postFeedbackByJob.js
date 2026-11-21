@@ -8,10 +8,7 @@
   import userModel from "../users/user.model.js"; // adjust path
   import {MailTemplates} from "../../common/utils/mailTemaplate.js"; // if using
 
-  /**
-   * POST /feedback/:jobId
-   * Post feedback for a candidate application
-   */
+
   const postFeedbackByJob = async (req, res) => {
     try {
       const { jobId } = req.params;
@@ -23,7 +20,7 @@
         newStatus = null,
       } = req.body;
 
-      const companyCode = req.user.companyCode; // ✅ ADDED
+      const companyCode = req.user.companyCode;
 
       if (!applicationId) {
         return res.status(400).json({
@@ -46,7 +43,6 @@
         });
       }
 
-      // ✅ companyCode added
       const job = await Job.findOne({ 
         _id: jobId, 
         isDraft: false,
@@ -59,8 +55,6 @@
           message: "Job not found or not published",
         });
       }
-
-      // ✅ companyCode added
       const application = await Application.findOne({
         _id: applicationId,
         jobId,
@@ -203,82 +197,69 @@
         }
       );
 
-      // -------------------------
   // EMAIL TRIGGER (Hired / Rejected)
-  // -------------------------
-try {
-  const candidateEmail =
-    application?.answers?.email || candidate?.email;
-  const candidateName = 
-    `${application?.answers?.firstName || ""} ${application?.answers?.middleName || ""} ${application?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
-    application?.answers?.full_name ||
-    application?.answers?.name ||
-    candidate?.name || 
-    "Candidate";
+    try {
 
-  if (
-    candidateEmail &&
-    updateStatus &&
-    newStatus &&
-    previousStatus !== newStatus
-  ) {
-    // Fetch only when needed
-    const adminUser = await userModel.findOne({
-      companyCode,
-      role: "SuperAdmin",
-    }).lean();
+      const candidateEmail = application?.answers?.email || candidate?.email;
 
-    // =========================
-    // ✅ HIRED
-    // =========================
-    if (newStatus === "hired") {
-      const template = MailTemplates.selected({
-        candidateName,
-        job,
-        organizationName: adminUser?.organizationName,
-        businessEmail: adminUser?.businessEmail,
-        logo: adminUser?.companyLogo,
-        joiningDate: new Date().toDateString(),
-        reportingTime: "9:30 AM",
-        workLocation: "Chennai Office"
-      });
-    
-      await sendEmail({
-        companyCode,
-        to: candidateEmail,
-        bcc: template.bcc,
-        subject: template.subject,
-        html: template.html,
-      });
+      const candidateName = 
+        `${application?.answers?.firstName || ""} ${application?.answers?.middleName || ""} ${application?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
+        application?.answers?.full_name ||
+        application?.answers?.name ||
+        candidate?.name || 
+        "Candidate";
+
+      if (candidateEmail && updateStatus && newStatus && previousStatus !== newStatus) {
+        // Fetch only when needed
+        const adminUser = await userModel.findOne({companyCode, role: "SuperAdmin"}).lean();
+
+        // HIRED
+        if (newStatus === "hired") {
+          const template = MailTemplates.selected({
+            candidateName,
+            job,
+            organizationName: adminUser?.organizationName,
+            businessEmail: adminUser?.businessEmail,
+            logo: adminUser?.companyLogo,
+            joiningDate: new Date().toDateString(),
+            reportingTime: "9:30 AM",
+            workLocation: "Chennai Office"
+          });
+        
+          await sendEmail({
+            companyCode,
+            to: candidateEmail,
+            bcc: template.bcc,
+            subject: template.subject,
+            html: template.html,
+          });
+        }
+
+        // REJECTED
+        if (newStatus === "rejected") {
+          const template = MailTemplates.rejection({
+            candidateName,
+            job,
+            organizationName: adminUser?.organizationName,
+            businessEmail: adminUser?.businessEmail,
+            logo: adminUser?.companyLogo,
+            rejectionReason: "We found other candidates more suitable",
+            hiringManagerNotes: "",
+          });
+
+          await sendEmail({
+            companyCode,
+            to: candidateEmail,
+            bcc: template.bcc,
+            subject: template.subject,
+            html: template.html,
+          });
+        }
+      }
+
+    } catch (emailError) {
+      console.error("Email Sending Failed:", emailError.message);
     }
-
-    // =========================
-    // ❌ REJECTED
-    // =========================
-    if (newStatus === "rejected") {
-      const template = MailTemplates.rejection({
-        candidateName,
-        job,
-        organizationName: adminUser?.organizationName,
-        businessEmail: adminUser?.businessEmail,
-        logo: adminUser?.companyLogo,
-        rejectionReason: "We found other candidates more suitable",
-        hiringManagerNotes: "",
-      });
-
-      await sendEmail({
-        companyCode,
-        to: candidateEmail,
-        bcc: template.bcc,
-        subject: template.subject,
-        html: template.html,
-      });
-    }
-  }
-
-} catch (emailError) {
-  console.error("Email Sending Failed:", emailError.message);
-}
 
       return res.status(200).json({
         success: true,
@@ -308,10 +289,8 @@ try {
       });
     } catch (error) {
       console.error("Error posting candidate feedback:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Error posting candidate feedback",
-      });
+      
+      return res.status(500).json({ success: false, message: "Error posting candidate feedback"});
     }
   };
 

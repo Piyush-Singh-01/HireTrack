@@ -19,7 +19,7 @@ const postReject = async (req, res) => {
       cancelInterview = true,
     } = req.body;
 
-    const companyCode = req.user.companyCode; // ✅ ADDED
+    const companyCode = req.user.companyCode; 
 
     if (!applicationId) {
       return res.status(400).json({
@@ -42,12 +42,7 @@ const postReject = async (req, res) => {
       });
     }
 
-    // ✅ companyCode added
-    const job = await Job.findOne({ 
-      _id: jobId, 
-      isDraft: false,
-      companyCode
-    });
+    const job = await Job.findOne({ _id: jobId, isDraft: false, companyCode });
 
     if (!job) {
       return res.status(404).json({
@@ -56,12 +51,7 @@ const postReject = async (req, res) => {
       });
     }
 
-    // ✅ companyCode added
-    const application = await Application.findOne({
-      _id: applicationId,
-      jobId,
-      companyCode
-    });
+    const application = await Application.findOne({_id: applicationId, jobId, companyCode});
 
     if (!application) {
       return res.status(404).json({
@@ -84,9 +74,7 @@ const postReject = async (req, res) => {
       });
     }
 
-    const candidate = await Candidate.findById(
-      application.candidateId
-    ).lean();
+    const candidate = await Candidate.findById(application.candidateId).lean();
 
     const previousStatus = application.profileStatus;
 
@@ -97,8 +85,7 @@ const postReject = async (req, res) => {
       hiringManagerNotes ? ` - ${hiringManagerNotes}` : ""
     }`;
 
-    application.candidateFeedback = {
-      ...(application.candidateFeedback || {}),
+    application.candidateFeedback = {...(application.candidateFeedback || {}),
       feedbackDescription: application.candidateFeedback?.feedbackDescription
         ? `${application.candidateFeedback.feedbackDescription}\n\n${rejectionNote}`
         : rejectionNote,
@@ -106,7 +93,6 @@ const postReject = async (req, res) => {
 
     await application.save({ validateBeforeSave: false });
 
-    // ✅ companyCode added
     await CandidateDetails.updateOne(
       { 
         candidateId: application._id,
@@ -121,19 +107,14 @@ const postReject = async (req, res) => {
 
     let interviewCancellationInfo = null;
 
-    if (
-      cancelInterview &&
-      (previousStatus === "interview" ||
-        previousStatus === "shortlisted")
-    ) {
-      // ✅ companyCode added
-      const interviewSchedule = await InterviewSchedule.findOne({
-        applicationId: application._id,
-        companyCode
-      });
+    if (cancelInterview && (previousStatus === "interview" || previousStatus === "shortlisted")) {
+
+      const interviewSchedule = await InterviewSchedule.findOne({applicationId: application._id, companyCode});
 
       if (interviewSchedule) {
+
         interviewSchedule.status = "cancelled";
+
         await interviewSchedule.save();
 
         interviewCancellationInfo = {
@@ -147,39 +128,34 @@ const postReject = async (req, res) => {
 
     const candidateName = application?.answers?.name || `${application?.answers?.firstName || ""} ${application?.answers?.lastName || ""}` || candidate?.name ;
 
-    try {
-  if (application?.answers?.email) {
-    // 🔥 Get tenant (organization)
-    const adminUser = await userModel.findOne({
-      companyCode,
-      role: "SuperAdmin",
-    }).lean();
+  try {
+    if (application?.answers?.email) {
 
-    const template = MailTemplates.rejection({
-      candidateName,
-      job,
-      organizationName: adminUser?.organizationName,
-      businessEmail: adminUser?.businessEmail,
-      logo: adminUser?.companyLogo,
-      rejectionReason,
-      hiringManagerNotes,
-    });
+      const adminUser = await userModel.findOne({ companyCode, role: "SuperAdmin"}).lean();
 
-    await sendEmail({
-      companyCode,
-      to: application.answers.email,
-      bcc: template.bcc,
-      subject: template.subject,
-      html: template.html,
-    });
+      const template = MailTemplates.rejection({
+        candidateName,
+        job,
+        organizationName: adminUser?.organizationName,
+        businessEmail: adminUser?.businessEmail,
+        logo: adminUser?.companyLogo,
+        rejectionReason,
+        hiringManagerNotes,
+      });
+
+      await sendEmail({
+        companyCode,
+        to: application.answers.email,
+        bcc: template.bcc,
+        subject: template.subject,
+        html: template.html,
+      });
+    }
+  } catch (emailError) {
+    console.error("Rejection Email Failed:", emailError.message);
   }
-} catch (emailError) {
-  console.error("Rejection Email Failed:", emailError.message);
-}
 
-    return res.status(200).json({
-      success: true,
-      message: "Candidate rejected successfully",
+    return res.status(200).json({success: true, message: "Candidate rejected successfully",
       data: {
         application: {
           applicationId: application._id,

@@ -1,10 +1,5 @@
 import express from "express";
-import {
- getJobCandidatesAndSchedules,
-  postInterviewSchedule,
-  postOnHoldStatus,
-  postOnReschedule,
-} from "../controller/scheduleController/scheduleController.js";
+import { getJobCandidatesAndSchedules, postInterviewSchedule, postOnHoldStatus,postOnReschedule} from "../controller/scheduleController/scheduleController.js";
 import protect from "../../common/middleware/auth.js";
 import { allAccess } from "../../common/middleware/role.js";
 

@@ -1,9 +1,6 @@
 import Job from "../jobs/job.model.js";
 
-/**
- * Get total positions count (published jobs only)
- * GET /api/positions/total/count
- */
+
 const getTotalPositionsCount = async (req, res) => {
   try {
     const companyCode = req.user?.companyCode;
@@ -16,7 +13,7 @@ const getTotalPositionsCount = async (req, res) => {
     }
 
     const filter = {
-      companyCode,   // ✅ Mandatory tenant isolation
+      companyCode, 
       isDraft: false,
     };
 
@@ -30,12 +27,10 @@ const getTotalPositionsCount = async (req, res) => {
       },
     });
   } catch (error) {
+    
     console.error("Error fetching total positions count:", error);
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({success: false, message: "Internal server error" });
   }
 };
 

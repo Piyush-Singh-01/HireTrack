@@ -35,9 +35,9 @@ const LoginPage = () => {
     }
   }, [token, navigate]);
 
-  // Trigger page reveal animation if navigated from CreateAccount
+  // Trigger page reveal animation if navigated from CreateAccount or ForgotPassword
   useEffect(() => {
-    if (location.state?.fromCreate) {
+    if (location.state?.fromCreate || location.state?.fromForgot) {
       setPageReveal(true);
       const timer = setTimeout(() => {
         setPageReveal(false);

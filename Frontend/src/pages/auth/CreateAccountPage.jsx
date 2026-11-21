@@ -5,15 +5,7 @@ import { useToast } from "../../utils/ToastContext";
 import CreateAccount from "../../component/login/CreateAccount";
 import { Sparkles } from "lucide-react";
 
-/**
- * CreateAccountPage Component (Route: "/createAccount")
- *
- * Page Controller for User Registration:
- * - Coordinates account registration with useRegister hook
- * - Manages route transition animations and page reveal state
- * - Sets page title & manages user feedback toasts
- * - Houses the layout and delegates presentation to CreateAccount component
- */
+
 const CreateAccountPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,9 +20,9 @@ const CreateAccountPage = () => {
     document.title = "Create Account | HireTrack";
   }, []);
 
-  // Reveal curtain when entering from Login
+  // Reveal curtain when entering from Login or ForgotPassword
   useEffect(() => {
-    if (location.state?.fromLogin) {
+    if (location.state?.fromLogin || location.state?.fromForgot) {
       setPageReveal(true);
       const timer = setTimeout(() => {
         setPageReveal(false);

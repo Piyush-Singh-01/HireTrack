@@ -22,28 +22,17 @@ export const getJobs = async (req, res) => {
       });
     }
 
-    // =================================================
     // SINGLE FETCH BY ID
-    // =================================================
+
     if (single) {
-      if (
-        !mongoose.Types.ObjectId.isValid(
-          single
-        )
-      ) {
+      if ( !mongoose.Types.ObjectId.isValid(single) ) {
         return res.status(400).json({
           success: false,
-          message:
-            "Invalid job ID format",
-          error: "INVALID_JOB_ID",
+          message: "Invalid job ID format", error: "INVALID_JOB_ID",
         });
       }
 
-      const job =
-        await Job.findOne({
-          _id: single,
-          companyCode,
-        })
+      const job = await Job.findOne({_id: single, companyCode })
           .populate("formId", "_id")
           .select({
             jobTitle: 1,
@@ -77,230 +66,106 @@ export const getJobs = async (req, res) => {
       if (!job) {
         return res.status(404).json({
           success: false,
-          message:
-            "Job not found",
-          error:
-            "JOB_NOT_FOUND",
+          message: "Job not found", error: "JOB_NOT_FOUND",
         });
       }
 
       const now = new Date();
 
-      const closingDate =
-        job.closingDate
-          ? new Date(
-              job.closingDate
-            )
-          : null;
+      const closingDate = job.closingDate ? new Date(job.closingDate) : null;
 
-      const isActive =
-        job.jobStatus ===
-          "Open" &&
-        closingDate &&
-        closingDate > now;
+      const isActive = job.jobStatus === "Open" && closingDate && closingDate > now;
 
-      const daysRemaining =
-        isActive
-          ? Math.ceil(
-              (closingDate -
-                now) /
-                (1000 *
-                  60 *
-                  60 *
-                  24)
-            )
-          : 0;
+      const daysRemaining = isActive ? Math.ceil((closingDate - now) /  (1000 * 60 * 60 * 24)) : 0;
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          message:
-            "Job retrieved successfully",
-
-          data: {
-            job,
-            isActive,
-            daysRemaining,
-            canApply:
-              Boolean(
-                job.formId
-              ),
-          },
-        });
-    }
-
-    // =================================================
-    // LISTING MODE
-    // =================================================
-
-    page = Math.max(
-      parseInt(page) || 1,
-      1
-    );
-
-    limit = Math.min(
-      Math.max(
-        parseInt(limit) ||
-          10,
-        1
-      ),
-      50
-    );
-
-    const skip =
-      (page - 1) * limit;
-
-    type =
-      type.toLowerCase();
-
-    if (
-      ![
-        "all",
-        "open",
-        "closed",
-      ].includes(type)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid type. Allowed: all, open, closed",
+      return res.status(200).json({success: true, message: "Job retrieved successfully",
+          
+        data: {job, isActive, daysRemaining, canApply: Boolean(job.formId)},
       });
     }
 
-    if (!sortBy) {
-      sortBy =
-        type === "all"
-          ? "createdAt"
-          : "publishedAt";
+    // LISTING MODE
+
+    page = Math.max(parseInt(page) || 1, 1);
+
+    limit = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
+
+    const skip = (page - 1) * limit;
+
+    type = type.toLowerCase();
+
+    if (!["all", "open", "closed" ].includes(type)) {
+      return res.status(400).json({ success: false, message: "Invalid type. Allowed: all, open, closed" });
     }
 
-    const sort = {
-      [sortBy]:
-        sortOrder ===
-        "asc"
-          ? 1
-          : -1,
-    };
+    if (!sortBy) {
+      sortBy = type === "all" ? "createdAt" : "publishedAt"}
 
-    const filter = {
-      companyCode,
-      isDraft: false,
-    };
+    const sort = {[sortBy]: sortOrder === "asc" ? 1 : -1};
 
-    const today =
-      new Date();
+    const filter = {companyCode, isDraft: false};
 
-    today.setHours(
-      0,
-      0,
-      0,
-      0
-    );
+    const today = new Date();
 
-    // ---------------------------------
+    today.setHours(0, 0, 0, 0);
+
     // OPEN
-    // ---------------------------------
     if (type === "open") {
-      filter.isDraft =
-        false;
+
+      filter.isDraft = false;
 
       filter.$nor = [
-        {
-          jobStatus:
-            "Closed",
-        },
-        {
-          closingDate:
-            {
+        { jobStatus: "Closed"},
+        { closingDate:{
               $lt: today,
             },
         },
       ];
     }
 
-    // ---------------------------------
     // CLOSED
-    // ---------------------------------
-    if (
-      type === "closed"
-    ) {
-      filter.isDraft =
-        false;
+    if (type === "closed") {
+      
+      filter.isDraft = false;
 
       filter.$or = [
-        {
-          jobStatus:
-            "Closed",
-        },
-        {
-          closingDate:
-            {
-              $lt: today,
-            },
-        },
+        { jobStatus: "Closed"},
+
+        { closingDate:{ $lt: today } },
       ];
     }
 
-    const [jobs, totalJobs] =
-      await Promise.all([
-        Job.find(filter)
-          .populate(
-            "formId",
-            "_id title"
-          )
+    const [jobs, totalJobs] = await Promise.all([Job.find(filter)
+          .populate( "formId", "_id title")
           .sort(sort)
           .skip(skip)
           .limit(limit)
           .lean(),
 
-        Job.countDocuments(
-          filter
-        ),
+        Job.countDocuments(filter)
       ]);
 
-    const totalPages =
-      Math.ceil(
-        totalJobs / limit
-      ) || 1;
+    const totalPages = Math.ceil(totalJobs / limit) || 1;
 
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: `${type} jobs retrieved successfully`,
+    return res.status(200).json({ success: true, message: `${type} jobs retrieved successfully`,
 
-        data: {
-          type,
-          jobs,
+        data: {type, jobs,
 
           pagination:
             {
-              currentPage:
-                page,
+              currentPage: page,
               totalPages,
               totalJobs,
-              hasNextPage:
-                page <
-                totalPages,
-              hasPrevPage:
-                page >
-                1,
-              limit,
+              hasNextPage: page < totalPages,
+              hasPrevPage:  page > 1, limit,
             },
         },
       });
   } catch (error) {
-    console.error(
-      "Error fetching jobs:",
-      error
-    );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Internal server error",
-    });
+    console.error( "Error fetching jobs:", error);
+
+    return res.status(500).json({success: false, message: "Internal server error",});
   }
 };
 

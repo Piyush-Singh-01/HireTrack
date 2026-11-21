@@ -1,9 +1,6 @@
 import Job from "../jobs/job.model.js";
 
-/**
- * Get open positions count (published only)
- * GET /api/positions/open/count
- */
+
 const getOpenPositions = async (req, res) => {
   try {
     const companyCode = req.user?.companyCode;
@@ -16,7 +13,7 @@ const getOpenPositions = async (req, res) => {
     }
 
     const filter = {
-      companyCode,          // ✅ Critical for SaaS isolation
+      companyCode,         
       isDraft: false,
       jobStatus: "Open",
     };
@@ -33,10 +30,7 @@ const getOpenPositions = async (req, res) => {
   } catch (error) {
     console.error("Error fetching open positions count:", error);
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res.status(500).json({success: false, message: "Internal server error"});
   }
 };
 
