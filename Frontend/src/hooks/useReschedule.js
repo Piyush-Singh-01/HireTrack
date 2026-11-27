@@ -21,6 +21,7 @@ export const useReschedule = () => {
       applicantIds,
       applicants,
       recruiterName,
+      isReschedule: explicitIsReschedule,
     }) => {
       const payload = {
         scheduleId,
@@ -35,11 +36,15 @@ export const useReschedule = () => {
         applicantIds,
         scheduleType,
         applicants,
+        recruiterName,
       };
 
       // If we have these IDs, it's a reschedule (PUT). 
       // If we only have candidateId/applicationId, it's a new schedule (POST).
-      const isReschedule = Boolean(scheduleId && scheduleId !== candidateId);
+      const isReschedule =
+        typeof explicitIsReschedule === "boolean"
+          ? explicitIsReschedule
+          : Boolean(scheduleId && scheduleId !== candidateId);
       
       const url = isReschedule 
         ? ApiRoutes.POSITION.RESCHEDULE(jobId)
@@ -76,6 +81,8 @@ export const useReschedule = () => {
       // Invalidate both general and specific schedule keys
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       queryClient.invalidateQueries({ queryKey: ["all-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["todayInterviewSchedule"] });
       if (jobId) {
         queryClient.invalidateQueries({ queryKey: ["candidates", jobId] });
       }

@@ -18,16 +18,22 @@ const normalizeTime = (time) => {
   if (/^\d{2}:\d{2}$/.test(time)) return time;
 
   const [t, m] = time.split(" ");
-  let [h, min] = t.split(":");
+  let [h, min = "00"] = t.split(":");
 
   if (m === "PM" && h !== "12") h = String(Number(h) + 12);
   if (m === "AM" && h === "12") h = "00";
 
-  return `${h.padStart(2, "0")}:${min}`;
+  return `${h.padStart(2, "0")}:${min.padStart(2, "0")}`;
+};
+
+const normalizeDatePart = (date) => {
+  if (!date) return "";
+  if (typeof date === "string") return date.split("T")[0];
+  return new Date(date).toISOString().split("T")[0];
 };
 
 const buildDateTime = (date, time) =>
-  new Date(`${date}T${time}:00+05:30`);
+  new Date(`${normalizeDatePart(date)}T${time}:00+05:30`);
 
 /* ================= CONTROLLER ================= */
 
@@ -49,6 +55,7 @@ const putRescheduleByJob = async (req, res) => {
       candidateId,
       newDate,
       newTime,
+      meetingMode,
       durationMinutes,
       sendNotification = true,
     } = req.body;
@@ -116,8 +123,15 @@ const putRescheduleByJob = async (req, res) => {
 
     /* ===== TIME ===== */
 
+    const datePart = normalizeDatePart(newDate);
     const time24 = normalizeTime(newTime);
-    const startDate = buildDateTime(newDate, time24);
+    const startDate = buildDateTime(datePart, time24);
+
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({
+        error: "Invalid date or time format",
+      });
+    }
 
     if (startDate.getTime() <= new Date().getTime()) {
       return res.status(400).json({
@@ -135,7 +149,7 @@ const putRescheduleByJob = async (req, res) => {
       jobId,
       companyCode,
       candidateIds: { $in: schedule.candidateIds },
-      interviewDate: newDate,
+      interviewDate: datePart,
       interviewTime: time24,
       status: { $nin: ["cancelled", "completed"] },
     });
@@ -151,7 +165,7 @@ const putRescheduleByJob = async (req, res) => {
     const candidates = await Application.find({
       _id: { $in: schedule.candidateIds },
       companyCode,
-    });
+    }).populate("candidateId", "name email");
 
     /* ===== GOOGLE CALENDAR UPDATE ===== */
 
@@ -279,8 +293,9 @@ const putRescheduleByJob = async (req, res) => {
       updatedAt: new Date(),
     };
 
-    schedule.interviewDate = newDate;
+    schedule.interviewDate = datePart;
     schedule.interviewTime = time24;
+    if (meetingMode) schedule.meetingMode = meetingMode;
     schedule.durationMinutes = duration;
     schedule.rescheduled = true;
     schedule.status = "Start Interview";
@@ -291,6 +306,15 @@ const putRescheduleByJob = async (req, res) => {
     await schedule.save();
 
     /* ===== UPDATE CANDIDATE DETAILS ===== */
+
+    const primaryCandidate = candidates[0];
+    const primaryCandidateName = primaryCandidate
+      ? `${primaryCandidate?.answers?.firstName || ""} ${primaryCandidate?.answers?.middleName || ""} ${primaryCandidate?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
+        primaryCandidate?.answers?.full_name ||
+        primaryCandidate?.answers?.name ||
+        primaryCandidate?.candidateId?.name ||
+        "Candidate"
+      : (schedule.candidateNames?.[0] || "Candidate");
 
     const cidQuery = candidateDetails?._id 
       ? { _id: candidateDetails._id, companyCode } 
@@ -307,6 +331,7 @@ const putRescheduleByJob = async (req, res) => {
           jobId,
           companyCode,
           candidateId: effectiveCandidateId,
+          Candidate: primaryCandidateName,
           Position: schedule.position || job.jobTitle,
           Recruiter: (schedule.recruiterName && schedule.recruiterName !== "Unknown") ? schedule.recruiterName : (req.user?.name || "Unknown"),
           Mode: schedule.meetingMode || "Online"
@@ -320,8 +345,8 @@ const putRescheduleByJob = async (req, res) => {
     const isGD = schedule.isGroupDiscussion || schedule.scheduleType === "Group Interview";
     let gdCandidateNames = [];
     let gdCandidateEmails = [];
-    let adminUser = null;
-    let emailErrors = [];
+    let adminUser = adminUserGoogle || null;
+    const singleEmailJobs = [];
 
     for (const candidate of candidates) {
       await Application.updateOne(
@@ -341,15 +366,37 @@ const putRescheduleByJob = async (req, res) => {
         `${candidate?.answers?.firstName || ""} ${candidate?.answers?.middleName || ""} ${candidate?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
         candidate?.answers?.full_name ||
         candidate?.answers?.name ||
+        candidate?.candidateId?.name ||
         "Candidate";
+
+      try {
+        await createScheduleNotification({
+          reschedule: true,
+          name: candidateName,
+          date: datePart,
+          time: time24,
+          role: job.jobTitle,
+          interviewId: schedule._id,
+          jobId: job._id,
+          companyCode,
+          userId: req?.user.id,
+        });
+      } catch (notifErr) {
+        console.error("Reschedule Notification Error:", notifErr.message);
+      }
 
       if (isGD) {
         gdCandidateNames.push(candidateName);
-        if (candidate.answers?.email) {
-          gdCandidateEmails.push(candidate.answers.email);
+        const gdEmail =
+          candidate.answers?.email ||
+          candidate.answers?.Email ||
+          candidate.candidateId?.email ||
+          candidate.email;
+        if (gdEmail) {
+          gdCandidateEmails.push(gdEmail);
         }
-      } else {
-        /* ===== EMAIL (WITH MEET LINK) FOR SINGLE INTERVIEW ===== */
+      } else if (sendNotification !== false) {
+        /* ===== QUEUE NON-BLOCKING EMAIL FOR SINGLE INTERVIEW ===== */
         const candidateEmail =
           candidate.answers?.email ||
           candidate.answers?.Email ||
@@ -357,95 +404,92 @@ const putRescheduleByJob = async (req, res) => {
           candidate.email;
 
         if (candidateEmail) {
-          try {
-            adminUser = adminUser || await userModel.findOne({
-              companyCode,
-              role: "SuperAdmin",
-            }).lean();
-
-            const template = MailTemplates.interviewRescheduled({
-              candidateName,
-              job,
-              newDate,
-              time24,
-              meetingLink,
-              organizationName: adminUser?.organizationName,
-              businessEmail: adminUser?.businessEmail,
-              logo: adminUser?.companyLogo,
-            });
-
-            await sendEmail({
-              companyCode,
-              from: adminUser?.businessEmail,
-              to: candidateEmail,
-              bcc: template.bcc,
-              subject: template.subject,
-              html: template.html,
-            });
-
-          } catch (err) {
-            console.error("Reschedule Email Error:", err.message);
-            emailErrors.push(err.message);
-          }
+          singleEmailJobs.push({ candidateName, candidateEmail });
         }
       }
-
-      await createScheduleNotification({
-        reschedule: true,
-        name: candidateName,
-        date: newDate,
-        time: time24,
-        role: job.jobTitle,
-        interviewId: schedule._id,
-        jobId: job._id,
-        companyCode,
-        userId: req?.user.id
-      });
     }
 
-    /* ===== SEND SINGLE GD EMAIL ===== */
-    if (isGD && gdCandidateEmails.length > 0) {
-      try {
-        adminUser = adminUser || await userModel.findOne({
-          companyCode,
-          role: "SuperAdmin",
-        }).lean();
+    /* ===== DISPATCH EMAILS IN BACKGROUND (NON-BLOCKING) ===== */
+    if (sendNotification !== false && (singleEmailJobs.length > 0 || (isGD && gdCandidateEmails.length > 0))) {
+      void (async () => {
+        try {
+          adminUser =
+            adminUser ||
+            (await userModel
+              .findOne({
+                companyCode,
+                role: "SuperAdmin",
+              })
+              .lean());
 
-        const template = MailTemplates.gdRescheduled({
-          candidateName: gdCandidateNames.join(", "),
-          jobTitle: job.jobTitle,
-          interviewDate: newDate,
-          time24,
-          durationMinutes: duration,
-          meetingLink,
-          organizationName: adminUser?.organizationName,
-          businessEmail: adminUser?.businessEmail,
-          recruiterName: (schedule.recruiterName && schedule.recruiterName !== "Unknown") ? schedule.recruiterName : (req.user?.name || "Unknown"),
-          logo: adminUser?.companyLogo
-        });
+          for (const item of singleEmailJobs) {
+            try {
+              const template = MailTemplates.interviewRescheduled({
+                candidateName: item.candidateName,
+                job,
+                newDate: datePart,
+                time24,
+                meetingLink,
+                organizationName: adminUser?.organizationName,
+                businessEmail: adminUser?.businessEmail,
+                logo: adminUser?.companyLogo,
+              });
 
-        await sendEmail({
-          companyCode,
-          from: adminUser?.businessEmail,
-          to: gdCandidateEmails.join(", "),
-          bcc: template.bcc,
-          subject: template.subject,
-          html: template.html,
-        });
-      } catch (err) {
-        console.error("GD Reschedule Email Error:", err.message);
-        emailErrors.push(err.message);
-      }
+              await sendEmail({
+                companyCode,
+                from: adminUser?.businessEmail,
+                to: item.candidateEmail,
+                bcc: template.bcc,
+                subject: template.subject,
+                html: template.html,
+              });
+            } catch (err) {
+              console.error("Background Reschedule Email Error:", err.message);
+            }
+          }
+
+          if (isGD && gdCandidateEmails.length > 0) {
+            try {
+              const template = MailTemplates.gdRescheduled({
+                candidateName: gdCandidateNames.join(", "),
+                jobTitle: job.jobTitle,
+                interviewDate: datePart,
+                time24,
+                durationMinutes: duration,
+                meetingLink,
+                organizationName: adminUser?.organizationName,
+                businessEmail: adminUser?.businessEmail,
+                recruiterName:
+                  schedule.recruiterName && schedule.recruiterName !== "Unknown"
+                    ? schedule.recruiterName
+                    : req.user?.name || "Unknown",
+                logo: adminUser?.companyLogo,
+              });
+
+              await sendEmail({
+                companyCode,
+                from: adminUser?.businessEmail,
+                to: gdCandidateEmails.join(", "),
+                bcc: template.bcc,
+                subject: template.subject,
+                html: template.html,
+              });
+            } catch (err) {
+              console.error("Background GD Reschedule Email Error:", err.message);
+            }
+          }
+        } catch (bgErr) {
+          console.error("Background Reschedule Email Setup Error:", bgErr.message);
+        }
+      })();
     }
-
-    const emailErrorMessage = emailErrors.length > 0 ? `, but email failed: ${[...new Set(emailErrors)].join(', ')}` : "";
 
     return res.status(200).json({
       success: true,
-      message: `Interview rescheduled successfully${emailErrorMessage}`,
+      message: "Interview rescheduled successfully",
       data: {
         scheduleId: schedule._id,
-        newDate,
+        newDate: datePart,
         newTime: time24,
         meetingLink: schedule.meetingLink,
       },

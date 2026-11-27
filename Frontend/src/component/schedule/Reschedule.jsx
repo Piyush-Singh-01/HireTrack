@@ -7,16 +7,18 @@ import { useToast } from "../../utils/ToastContext";
 import { useNotifications } from "../../hooks/useNotifications";
 import { MdOutlineCancel } from "react-icons/md";
 
-const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props }) => {
+const Reschedule = ({ interview: propInterview, onCancel, onSuccess, onClose, ...props }) => {
   const location = useLocation();
   const interview = propInterview || location.state?.interview;
+  const handleCancel = onCancel || onClose;
+  const handleSuccess = onSuccess || onClose;
   const [date, setDate] = useState("");
   const [hour, setHour] = useState("01");
   const [minute, setMinute] = useState("00");
   const [period, setPeriod] = useState("AM");
   const [mode, setMode] = useState("Online");
   const [duration, setDuration] = useState(30);
-  const [sendNotification, setSendNotification] = useState(false);
+  const [sendNotification, setSendNotification] = useState(true);
   const { createReminderMutation } = useNotifications();
   const { mutateAsync: rescheduleInterview, isPending } = useReschedule();
   const { showToast } = useToast();
@@ -71,7 +73,7 @@ const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props })
       const incomingMode = String(interview.meetingMode || interview.mode || "Online").toLowerCase();
       setMode(incomingMode === "offline" ? "Offline" : "Online");
       setDuration(30);
-      setSendNotification(false);
+      setSendNotification(true);
     }
   }, [interview?._id]);
 
@@ -85,6 +87,12 @@ const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props })
 
     const scheduleId = interview.scheduleId || interview._id;
     const candidateDetailsId = interview.candidateDetailsId || interview.candidateDetails?._id;
+    const isRescheduleAction = Boolean(
+      (scheduleId && scheduleId !== cId) ||
+      interview.scheduleId ||
+      interview.originalData ||
+      interview.reschedule !== undefined
+    );
 
     if (!jobId || !cId) {
       showToast("Required IDs missing", "error");
@@ -92,12 +100,13 @@ const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props })
     }
 
     try {
-      showToast(scheduleId && candidateDetailsId && scheduleId !== cId ? "Rescheduling interview..." : "Scheduling interview...", "info");
+      showToast(isRescheduleAction ? "Rescheduling interview..." : "Scheduling interview...", "info");
 
       const res = await rescheduleInterview({
         jobId,
         scheduleId,
         candidateDetailsId,
+        isReschedule: isRescheduleAction,
         newDate: date,
         newTime: `${hour}:${minute} ${period}`,
         meetingMode: mode,
@@ -109,29 +118,25 @@ const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props })
         scheduleType: interview.scheduleType || "Interview",
       });
 
-      // if (sendNotification) {
-      //   await createReminderMutation.mutateAsync({
-      //     title: "Interview Rescheduled",
-      //     message: `Interview with ${interview.name} for ${interview.position} is rescheduled to ${date} at ${time}`,
-      //     date,
-      //     time,
-      //     type: "interview",
-      //     relatedId: scheduleId,
-      //   });
-      // }
-
-      showToast(res?.message || "Interview rescheduled successfully!", "success");
-      onSuccess?.();
+      const msg = res?.message || "Interview rescheduled successfully!";
+      const isEmailWarning = msg.toLowerCase().includes("email failed");
+      showToast(msg, isEmailWarning ? "warning" : "success");
+      handleSuccess?.();
     } catch (err) {
       console.error("Reschedule failed:", err);
-      showToast("Failed to reschedule interview", "error");
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to reschedule interview";
+      showToast(errMsg, "error");
     }
   };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-3 py-4 backdrop-blur-sm"
-      onClick={onCancel}
+      onClick={handleCancel}
     >
       <form
         onSubmit={(e) => {
@@ -165,7 +170,7 @@ const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props })
             <button
               type="button"
               aria-label="Close reschedule modal"
-              onClick={onCancel}
+              onClick={handleCancel}
               className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition hover:rotate-90 hover:bg-white/20"
             >
               <MdOutlineCancel className="text-xl" />
@@ -344,7 +349,7 @@ const Reschedule = ({ interview: propInterview, onCancel, onSuccess, ...props })
             <button
               type="button"
               className="cursor-pointer rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-              onClick={onCancel}
+              onClick={handleCancel}
             >
               Cancel
             </button>

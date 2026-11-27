@@ -197,69 +197,59 @@
         }
       );
 
-  // EMAIL TRIGGER (Hired / Rejected)
-    try {
+      // EMAIL TRIGGER (Hired / Rejected) - NON-BLOCKING
+      const candidateEmail =
+        application?.answers?.email ||
+        application?.answers?.Email ||
+        candidate?.email;
 
-      const candidateEmail = application?.answers?.email || candidate?.email;
+      if (candidateEmail && updateStatus && newStatus && previousStatus !== newStatus && (newStatus === "hired" || newStatus === "rejected")) {
+        const candidateName =
+          `${application?.answers?.firstName || ""} ${application?.answers?.middleName || ""} ${application?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
+          application?.answers?.full_name ||
+          application?.answers?.name ||
+          candidate?.name ||
+          "Candidate";
 
-      const candidateName = 
-        `${application?.answers?.firstName || ""} ${application?.answers?.middleName || ""} ${application?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
-        application?.answers?.full_name ||
-        application?.answers?.name ||
-        candidate?.name || 
-        "Candidate";
+        void (async () => {
+          try {
+            const adminUser = await userModel.findOne({ companyCode, role: "SuperAdmin" }).lean();
 
-      if (candidateEmail && updateStatus && newStatus && previousStatus !== newStatus) {
-        // Fetch only when needed
-        const adminUser = await userModel.findOne({companyCode, role: "SuperAdmin"}).lean();
+            const template =
+              newStatus === "hired"
+                ? MailTemplates.selected({
+                    candidateName,
+                    job,
+                    organizationName: adminUser?.organizationName,
+                    businessEmail: adminUser?.businessEmail,
+                    logo: adminUser?.companyLogo,
+                    joiningDate: new Date().toDateString(),
+                    reportingTime: "9:30 AM",
+                    workLocation: "Chennai Office",
+                  })
+                : MailTemplates.rejection({
+                    candidateName,
+                    job,
+                    organizationName: adminUser?.organizationName,
+                    businessEmail: adminUser?.businessEmail,
+                    logo: adminUser?.companyLogo,
+                    rejectionReason: "We found other candidates more suitable",
+                    hiringManagerNotes: "",
+                  });
 
-        // HIRED
-        if (newStatus === "hired") {
-          const template = MailTemplates.selected({
-            candidateName,
-            job,
-            organizationName: adminUser?.organizationName,
-            businessEmail: adminUser?.businessEmail,
-            logo: adminUser?.companyLogo,
-            joiningDate: new Date().toDateString(),
-            reportingTime: "9:30 AM",
-            workLocation: "Chennai Office"
-          });
-        
-          await sendEmail({
-            companyCode,
-            to: candidateEmail,
-            bcc: template.bcc,
-            subject: template.subject,
-            html: template.html,
-          });
-        }
-
-        // REJECTED
-        if (newStatus === "rejected") {
-          const template = MailTemplates.rejection({
-            candidateName,
-            job,
-            organizationName: adminUser?.organizationName,
-            businessEmail: adminUser?.businessEmail,
-            logo: adminUser?.companyLogo,
-            rejectionReason: "We found other candidates more suitable",
-            hiringManagerNotes: "",
-          });
-
-          await sendEmail({
-            companyCode,
-            to: candidateEmail,
-            bcc: template.bcc,
-            subject: template.subject,
-            html: template.html,
-          });
-        }
+            await sendEmail({
+              companyCode,
+              from: adminUser?.businessEmail,
+              to: candidateEmail,
+              bcc: template.bcc,
+              subject: template.subject,
+              html: template.html,
+            });
+          } catch (emailError) {
+            console.error("Background Feedback Email Failed:", emailError.message);
+          }
+        })();
       }
-
-    } catch (emailError) {
-      console.error("Email Sending Failed:", emailError.message);
-    }
 
       return res.status(200).json({
         success: true,

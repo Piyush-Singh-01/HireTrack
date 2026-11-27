@@ -2,11 +2,7 @@ import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Reschedule from "../../component/schedule/Reschedule";
 
-/**
- * ReschedulePage Controller
- * Route: /reschedule
- * Manages interview rescheduling parameters, date/time updates, and post-action redirects.
- */
+
 const ReschedulePage = (props) => {
   const location = useLocation();
   const navigate = useNavigate();

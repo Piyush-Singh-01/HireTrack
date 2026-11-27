@@ -128,32 +128,39 @@ const postReject = async (req, res) => {
 
     const candidateName = application?.answers?.name || `${application?.answers?.firstName || ""} ${application?.answers?.lastName || ""}` || candidate?.name ;
 
-  try {
-    if (application?.answers?.email) {
+    const candidateEmail =
+      application?.answers?.email ||
+      application?.answers?.Email ||
+      candidate?.email;
 
-      const adminUser = await userModel.findOne({ companyCode, role: "SuperAdmin"}).lean();
+    if (candidateEmail) {
+      void (async () => {
+        try {
+          const adminUser = await userModel.findOne({ companyCode, role: "SuperAdmin" }).lean();
 
-      const template = MailTemplates.rejection({
-        candidateName,
-        job,
-        organizationName: adminUser?.organizationName,
-        businessEmail: adminUser?.businessEmail,
-        logo: adminUser?.companyLogo,
-        rejectionReason,
-        hiringManagerNotes,
-      });
+          const template = MailTemplates.rejection({
+            candidateName,
+            job,
+            organizationName: adminUser?.organizationName,
+            businessEmail: adminUser?.businessEmail,
+            logo: adminUser?.companyLogo,
+            rejectionReason,
+            hiringManagerNotes,
+          });
 
-      await sendEmail({
-        companyCode,
-        to: application.answers.email,
-        bcc: template.bcc,
-        subject: template.subject,
-        html: template.html,
-      });
+          await sendEmail({
+            companyCode,
+            from: adminUser?.businessEmail,
+            to: candidateEmail,
+            bcc: template.bcc,
+            subject: template.subject,
+            html: template.html,
+          });
+        } catch (emailError) {
+          console.error("Background Rejection Email Failed:", emailError.message);
+        }
+      })();
     }
-  } catch (emailError) {
-    console.error("Rejection Email Failed:", emailError.message);
-  }
 
     return res.status(200).json({success: true, message: "Candidate rejected successfully",
       data: {

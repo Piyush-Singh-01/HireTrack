@@ -942,6 +942,8 @@ const Schedule = ({ initialDate = "Today", initialTab = "All", ...props }) => {
         <Reschedule
           isOpen={showRescheduleModal}
           onClose={closeReschedule}
+          onCancel={closeReschedule}
+          onSuccess={closeReschedule}
           interview={selectedInterview}
         />
       )}

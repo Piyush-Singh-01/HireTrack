@@ -1,8 +1,6 @@
-/* ============================================================
-   TALENT OS - EXECUTIVE PRESENTATION ANIMATION & TRANSITION SYSTEM
-   ============================================================ */
 
-/* Top Laser Progress Bar for Page Mount / Refresh */
+
+ /* Top Laser Progress Bar for Page Mount / Refresh   */
 .presentation-top-laser {
   position: fixed;
   top: 0;
@@ -102,9 +100,7 @@
   }
 }
 
-/* ============================================================
-   CINEMATIC PORTAL CURTAIN TRANSITION (Page Change Wipe)
-   ============================================================ */
+/*  CINEMATIC PORTAL CURTAIN TRANSITION (Page Change Wipe) */
 
 .portal-transition-overlay {
   position: fixed;
@@ -311,4 +307,4 @@
 
 .animate-waveFloat {
   animation: waveFloat 3s ease-in-out infinite;
-}
+}

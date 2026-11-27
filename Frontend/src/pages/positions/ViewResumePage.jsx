@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { pdfjs } from "react-pdf";
 import { IoArrowBack } from "react-icons/io5";
 import { useCandidateStatus } from "../../hooks/useCandidateStatus";
 import { useViewDetails } from "../../hooks/useViewDetails";
@@ -16,8 +15,6 @@ import {
   ResumeViewer,
   ConfirmationModals,
 } from "../../component/position/candidatePage/viewResume";
-
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
 /* =========================================================
    Helpers for filtering & formatting candidate answers
@@ -80,6 +77,84 @@ const buildFullName = (answers, fallbackName) => {
   return fullName || fallbackName || "-";
 };
 
+const normalizeResumeUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("http://res.cloudinary.com/")) {
+    return trimmed.replace("http://", "https://");
+  }
+  return trimmed;
+};
+
+const pickUrlFromAnswerValue = (val) => {
+  if (!val) return null;
+  if (typeof val === "string" && val.startsWith("http")) return val;
+  if (Array.isArray(val)) {
+    for (const item of val) {
+      const picked = pickUrlFromAnswerValue(item);
+      if (picked) return picked;
+    }
+    return null;
+  }
+  if (typeof val === "object") {
+    const url = val.url || val.fileUrl || val.secure_url;
+    if (typeof url === "string" && url.startsWith("http")) return url;
+  }
+  return null;
+};
+
+const extractResumeUrlFromAnswers = (answers) => {
+  if (!answers || typeof answers !== "object") return null;
+
+  const commonKeys = ["attachments", "resume", "resumeUrl", "resume_url", "cv", "file", "pdf"];
+  for (const key of commonKeys) {
+    const picked = pickUrlFromAnswerValue(answers[key]);
+    if (picked) return normalizeResumeUrl(picked);
+  }
+
+  for (const val of Object.values(answers)) {
+    const picked = pickUrlFromAnswerValue(val);
+    if (picked) {
+      const lower = picked.toLowerCase();
+      if (lower.includes("cloudinary.com") || lower.includes(".pdf")) {
+        return normalizeResumeUrl(picked);
+      }
+    }
+  }
+
+  return null;
+};
+
+const buildCloudinaryPdfPageUrl = (url, page = 1) => {
+  if (!url || typeof url !== "string") return null;
+  if (!url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) return null;
+  if (!/\.pdf(\?|#|$)/i.test(url)) return null;
+
+  const [baseWithoutQuery] = url.split("?");
+  return baseWithoutQuery
+    .replace("/image/upload/", `/image/upload/pg_${page},w_1400,q_auto/`)
+    .replace(/\.pdf$/i, ".png");
+};
+
+const fetchCloudinaryPdfPages = async (url, maxPages = 15) => {
+  const firstPage = buildCloudinaryPdfPageUrl(url, 1);
+  if (!firstPage) return [];
+
+  const pages = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const pageUrl = buildCloudinaryPdfPageUrl(url, page);
+    if (!pageUrl) break;
+    const res = await fetch(pageUrl, { method: "HEAD" });
+    const contentType = res.headers.get("content-type") || "";
+    if (!res.ok || !contentType.startsWith("image/")) {
+      break;
+    }
+    pages.push(pageUrl);
+  }
+  return pages;
+};
+
 const buildAddress = (answers) =>
   [
     answers?.address1,
@@ -130,6 +205,14 @@ const ViewResumePage = (props) => {
   const [connectionError, setConnectionError] = useState(null);
   const [toast, setToast] = useState(null);
 
+  // Authenticated Resume Preview state
+  const [resumePreviewUrl, setResumePreviewUrl] = useState(null);
+  const [resumePageImages, setResumePageImages] = useState([]);
+  const [resumeMimeType, setResumeMimeType] = useState("application/pdf");
+  const [isResumeLoading, setIsResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState(null);
+  const [resumeReloadCount, setResumeReloadCount] = useState(0);
+
   const showToast = (message, type = "info") => {
     setToast({ message, type });
     setTimeout(() => {
@@ -173,8 +256,14 @@ const ViewResumePage = (props) => {
     () => candidateDetails?.answers || candidate?.answers || {},
     [candidate?.answers, candidateDetails?.answers]
   );
-  const attachments = answers?.attachments || [];
-  const resumeUrl = attachments?.[0]?.url || attachments?.[0]?.fileUrl;
+  const resumeUrl = useMemo(() => extractResumeUrlFromAnswers(answers), [answers]);
+  const resumeFileName = useMemo(
+    () =>
+      answers?.attachments?.[0]?.fileName ||
+      answers?.attachments?.[0]?.originalname ||
+      "resume.pdf",
+    [answers]
+  );
 
   const profileStatus =
     candidateDetails?.profileStatus || candidate?.profileStatus || "";
@@ -208,6 +297,113 @@ const ViewResumePage = (props) => {
       setConnectionError(null);
     }
   }, [isError, positionError]);
+
+  /* ---------- Load Resume Blob via Authenticated Backend Proxy ---------- */
+  useEffect(() => {
+    let isCancelled = false;
+    let createdBlobUrl = null;
+
+    if (!resumeUrl || connectionError) {
+      setResumePreviewUrl(null);
+      setResumePageImages([]);
+      setResumeError(null);
+      setIsResumeLoading(false);
+      return undefined;
+    }
+
+    const createSafeBlobUrl = (rawBlob, headerContentType) => {
+      const rawType = (headerContentType || rawBlob?.type || "").split(";")[0].trim().toLowerCase();
+      if (!rawBlob || rawBlob.size === 0 || rawType === "application/json" || rawType === "text/html") {
+        throw new Error("Invalid resume file received.");
+      }
+
+      const isImage = rawType.startsWith("image/");
+      const effectiveType = isImage
+        ? rawType
+        : rawType === "application/pdf"
+        ? "application/pdf"
+        : resumeUrl.toLowerCase().includes(".pdf")
+        ? "application/pdf"
+        : rawType || "application/pdf";
+
+      const typedBlob =
+        rawBlob.type === effectiveType ? rawBlob : new Blob([rawBlob], { type: effectiveType });
+
+      return {
+        url: URL.createObjectURL(typedBlob),
+        mime: effectiveType,
+      };
+    };
+
+    const loadResume = async () => {
+      setIsResumeLoading(true);
+      setResumeError(null);
+      setResumePageImages([]);
+
+      try {
+        // 1. Try authenticated backend proxy (handles Cloudinary PDF ACL restrictions)
+        if (candidateId) {
+          try {
+            const res = await axiosInstance.get(ApiRoutes.APPLICATION.RESUME(candidateId), {
+              responseType: "blob",
+            });
+            if (isCancelled) return;
+            const { url, mime } = createSafeBlobUrl(res.data, res.headers?.["content-type"]);
+            createdBlobUrl = url;
+            setResumePreviewUrl(url);
+            setResumeMimeType(mime);
+            return;
+          } catch (proxyErr) {
+            console.warn("Resume proxy unavailable, trying direct URL:", proxyErr?.message);
+          }
+        }
+
+        // 2. Fallback: direct fetch of resumeUrl as Blob
+        const directRes = await fetch(resumeUrl);
+        if (directRes.ok) {
+          const directBlob = await directRes.blob();
+          if (isCancelled) return;
+          const { url, mime } = createSafeBlobUrl(directBlob, directRes.headers.get("content-type"));
+          createdBlobUrl = url;
+          setResumePreviewUrl(url);
+          setResumeMimeType(mime);
+          return;
+        }
+
+        // 3. Fallback: Cloudinary PDF page-image rendering (works even when raw .pdf delivery returns 401 ACL)
+        const pages = await fetchCloudinaryPdfPages(resumeUrl);
+        if (isCancelled) return;
+        if (pages.length > 0) {
+          setResumePreviewUrl(null);
+          setResumePageImages(pages);
+          setResumeMimeType("image/png");
+          return;
+        }
+
+        throw new Error(`Unable to load PDF document (HTTP ${directRes.status}).`);
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Failed to load resume:", err);
+          setResumePreviewUrl(null);
+          setResumePageImages([]);
+          setResumeError(err?.message || "Failed to load PDF document.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsResumeLoading(false);
+        }
+      }
+    };
+
+    loadResume();
+
+    return () => {
+      isCancelled = true;
+      if (createdBlobUrl) {
+        URL.revokeObjectURL(createdBlobUrl);
+      }
+    };
+  }, [candidateId, resumeUrl, connectionError, resumeReloadCount]);
 
   /* ---------- AI Resume Analysis Fetch & Trigger ---------- */
   useEffect(() => {
@@ -351,8 +547,12 @@ const ViewResumePage = (props) => {
       await shortlistCandidate.mutate();
       setShortlist(false);
       showToast("Candidate shortlisted successfully", "success");
-    } catch {
-      showToast("Failed to shortlist candidate. Please try again.", "error");
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to shortlist candidate. Please try again.";
+      showToast(msg, "error");
     }
   };
 
@@ -495,7 +695,8 @@ const ViewResumePage = (props) => {
           educationEntries={educationEntries}
           experienceEntries={experienceEntries}
           skills={skills}
-          resumeUrl={resumeUrl}
+          resumeUrl={resumePreviewUrl || resumePageImages[0] || resumeUrl}
+          resumeFileName={resumeFileName}
           connectionError={connectionError}
         />
 
@@ -513,7 +714,14 @@ const ViewResumePage = (props) => {
         {/* Resume PDF Viewer */}
         <ResumeViewer
           resumeUrl={resumeUrl}
+          previewUrl={resumePreviewUrl}
+          pageImages={resumePageImages}
+          mimeType={resumeMimeType}
+          fileName={resumeFileName}
           isLoading={isLoading}
+          isResumeLoading={isResumeLoading}
+          resumeError={resumeError}
+          onReload={() => setResumeReloadCount((c) => c + 1)}
           connectionError={connectionError}
         />
       </div>

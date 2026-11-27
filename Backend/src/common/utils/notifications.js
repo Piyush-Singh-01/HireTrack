@@ -96,7 +96,11 @@ export const createScheduleNotification = async (
 
     const formattedTime = formatTo12Hour(time);
 
-    if(name){
+    if(reschedule && name){
+      message = `Interview rescheduled with ${name} on ${date} at ${formattedTime} for ${role}.`;
+    }else if(reschedule && candidateNames){
+      message = `GD rescheduled with ${candidateNames.join(", ")} on ${date} at ${formattedTime} for ${role}.`;
+    }else if(name){
       message = `Interview with ${name} on ${date} at ${formattedTime} for ${role}.`;
     }else if(candidateNames){
       message = `GD with ${candidateNames.join(", ")} on ${date} at ${formattedTime} for ${role}.`;

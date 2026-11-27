@@ -30,10 +30,18 @@ export const useCandidateStatus = (jobId, candidateId) => {
         data,
       }));
 
-      queryClient.invalidateQueries(["candidates", jobId]);
+      queryClient.invalidateQueries({ queryKey: ["candidates", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["get-candidate", candidateId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
 
       navigate("/viewApplicants", {
-        state: { status: "Open", jobId, message: "Candidate shortlisted successfully", tab: "Selected" },
+        state: {
+          status: "Open",
+          jobId,
+          message: "Candidate shortlisted successfully",
+          newToast: { message: "Candidate shortlisted successfully", type: "success" },
+          tab: "Selected",
+        },
       });
     },
     onError: (error) => {
@@ -85,10 +93,18 @@ export const useCandidateStatus = (jobId, candidateId) => {
         data,
       }));
 
-      queryClient.invalidateQueries(["candidates", jobId]);
+      queryClient.invalidateQueries({ queryKey: ["candidates", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["get-candidate", candidateId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
 
       navigate("/viewApplicants", {
-        state: { status: "Open", jobId, message: "Candidate rejected successfully", tab: "Rejected" },
+        state: {
+          status: "Open",
+          jobId,
+          message: "Candidate rejected successfully",
+          newToast: { message: "Candidate rejected successfully", type: "success" },
+          tab: "Rejected",
+        },
       });
     },
     onError: (error) => {

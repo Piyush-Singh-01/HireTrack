@@ -21,6 +21,7 @@ const ApplicationDetails = ({
   experienceEntries,
   skills,
   resumeUrl,
+  resumeFileName,
   connectionError,
 }) => (
   <SectionCard
@@ -132,6 +133,7 @@ const ApplicationDetails = ({
                 href={resumeUrl}
                 target="_blank"
                 rel="noreferrer"
+                title={resumeFileName || "View Resume File"}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue/10 px-3 py-2 text-sm font-semibold text-blue transition-colors hover:bg-blue hover:text-white"
               >
                 <FileIcon />

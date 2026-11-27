@@ -59,14 +59,7 @@ const AddInputButton = ({ onClick }) => (
   </button>
 );
 
-/**
- * CreateApplication (UI Component)
- * Focused on rendering the Step 1 form layout:
- * - Job details summary
- * - Personal Information fields & custom questions
- * - Education entries & custom questions
- * - Delete confirmation modal & navigation footer
- */
+
 const CreateApplication = ({
   jobDetails = {},
   formData = {},
@@ -188,7 +181,7 @@ const CreateApplication = ({
           <AddInputButton onClick={() => onNavigateAddInput("personalInfo")} />
         </SectionHeader>
 
-        <SubHeading>Full name</SubHeading>
+        {/* <SubHeading>Full name</SubHeading> */}
         <FieldGrid>
           <InputLabel
             label="First Name"

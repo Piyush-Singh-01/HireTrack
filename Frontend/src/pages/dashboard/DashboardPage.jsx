@@ -58,7 +58,7 @@ const DashboardPage = () => {
   const [period, setPeriod] = useState("AM");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [rescheduleDuration, setRescheduleDuration] = useState(30);
-  const [sendNotification, setSendNotification] = useState(false);
+  const [sendNotification, setSendNotification] = useState(true);
 
   // Set document title
   useEffect(() => {
@@ -248,7 +248,7 @@ const DashboardPage = () => {
     const newTime = `${hour}:${minute} ${period}`;
 
     try {
-      await rescheduleInterview.mutateAsync({
+      const res = await rescheduleInterview.mutateAsync({
         jobId: selectedApplicant?.jobId,
         candidateId: selectedApplicant?.candidateId,
         candidateDetailsId: selectedApplicant?._id,
@@ -257,9 +257,14 @@ const DashboardPage = () => {
         newDate,
         newTime,
         durationMinutes: rescheduleDuration,
+        sendNotification,
       });
+      const msg = res?.message || "Interview rescheduled successfully";
+      showToast(msg, msg.toLowerCase().includes("email failed") ? "warning" : "success");
       setSowReschedule(false);
       setShowViewDetail(false);
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["todayInterviewSchedule"] });
     } catch (err) {
       console.error("[RescheduleInterview] error", err);
       const msg =

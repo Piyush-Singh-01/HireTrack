@@ -115,32 +115,46 @@ const postShortListed = async (req, res) => {
     }
 
     await application.save({ validateBeforeSave: false });
-// Send Email Notification
-    try {
-      if (candidate?.email) {
-        const adminUser = await userModel.findOne({companyCode, role: "SuperAdmin"}).lean();
+    // Send Email Notification (non-blocking)
+    const candidateEmail =
+      application?.answers?.email ||
+      application?.answers?.Email ||
+      candidate?.email;
 
-        const template = MailTemplates.shortlisted({
-          candidateName: candidate?.name,
-          job,
-          hiringManagerNotes,
-          organizationName: adminUser?.organizationName,
-          businessEmail: adminUser?.businessEmail,
-          logo: adminUser?.companyLogo,
-          reason, 
-        });
+    if (candidateEmail) {
+      const candidateName =
+        `${application?.answers?.firstName || ""} ${application?.answers?.middleName || ""} ${application?.answers?.lastName || ""}`.replace(/\s+/g, " ").trim() ||
+        application?.answers?.full_name ||
+        application?.answers?.name ||
+        candidate?.name ||
+        "Candidate";
 
-        // 🔥 Send email
-        await sendEmail({
-          companyCode,
-          to: candidate.email,
-          bcc: template.bcc,
-          subject: template.subject,
-          html: template.html,
-        });
-      }
-    } catch (emailError) {
-      console.error("Email sending failed:", emailError.message);
+      void (async () => {
+        try {
+          const adminUser = await userModel.findOne({ companyCode, role: "SuperAdmin" }).lean();
+
+          const template = MailTemplates.shortlisted({
+            candidateName,
+            job,
+            hiringManagerNotes,
+            organizationName: adminUser?.organizationName,
+            businessEmail: adminUser?.businessEmail,
+            logo: adminUser?.companyLogo,
+            reason,
+          });
+
+          await sendEmail({
+            companyCode,
+            from: adminUser?.businessEmail,
+            to: candidateEmail,
+            bcc: template.bcc,
+            subject: template.subject,
+            html: template.html,
+          });
+        } catch (emailError) {
+          console.error("Background Shortlist Email Failed:", emailError.message);
+        }
+      })();
     }
     
     return res.status(200).json({

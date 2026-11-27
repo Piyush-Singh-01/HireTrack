@@ -1816,6 +1816,8 @@ const ViewApplicants = ({
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
+                    checked={sendNotification}
+                    onChange={(e) => onSendNotificationChange(e.target.checked)}
                     className="h-4 w-4 cursor-pointer accent-[#324371]"
                   />
                   Send Notification

@@ -122,63 +122,67 @@ export const postGDScheduleByJob = async (req, res) => {
     const googleData = adminUser?.googleCalendar;
 
     if (googleData?.isConnected) {
-      const interviewerEmails = [];
-      
-      const addEmail = (user) => {
-        if (!user) return;
-        const email = user.Email || user.businessEmail || user.googleCalendar?.googleEmail || user.email;
-        if (email && !interviewerEmails.includes(email)) {
-          interviewerEmails.push(email);
+      try {
+        const interviewerEmails = [];
+        
+        const addEmail = (user) => {
+          if (!user) return;
+          const email = user.Email || user.businessEmail || user.googleCalendar?.googleEmail || user.email;
+          if (email && !interviewerEmails.includes(email)) {
+            interviewerEmails.push(email);
+          }
+        };
+
+        if (job.hiringManager?.userId) addEmail(job.hiringManager.userId);
+        if (job.hiringManagers?.length > 0) {
+          job.hiringManagers.forEach(hm => addEmail(hm.userId));
         }
-      };
 
-      if (job.hiringManager?.userId) addEmail(job.hiringManager.userId);
-      if (job.hiringManagers?.length > 0) {
-        job.hiringManagers.forEach(hm => addEmail(hm.userId));
-      }
+        // Add Admin users
+        const admins = await UserAndRole.find({ companyCode, Role: "Admin" }).lean();
+        admins.forEach(admin => addEmail(admin));
 
-      // Add Admin users
-      const admins = await UserAndRole.find({ companyCode, Role: "Admin" }).lean();
-      admins.forEach(admin => addEmail(admin));
+        // Add SuperAdmin user
+        if (adminUser) addEmail(adminUser);
 
-      // Add SuperAdmin user
-      if (adminUser) addEmail(adminUser);
+        // Add logged-in user who scheduled the interview
+        if (req.user) addEmail(req.user);
 
-      // Add logged-in user who scheduled the interview
-      if (req.user) addEmail(req.user);
+        // Add candidates so they bypass the lobby
+        candidates.forEach(candidate => {
+          if (candidate?.answers?.email) {
+            addEmail({ email: candidate.answers.email });
+          }
+        });
 
-      // Add candidates so they bypass the lobby
-      candidates.forEach(candidate => {
-        if (candidate?.answers?.email) {
-          addEmail({ email: candidate.answers.email });
+        const event = await createCalendarEvent({
+          description: `Group Discussion for ${job.jobTitle}`,
+          start: startDateTime.toISOString(),
+          end: endDateTime.toISOString(),
+          interviewerEmails, // ✅ PASS INTERVIEWER EMAILS
+
+          // ✅ FIX: use DB tokens (NOT env)
+          accessToken: googleData.accessToken,
+          refreshToken: googleData.refreshToken,
+        });
+
+        let link = null;
+
+        if (event?.conferenceData?.entryPoints?.length > 0) {
+          const video = event.conferenceData.entryPoints.find(
+            (e) => e.entryPointType === "video"
+          );
+          link = video?.uri;
         }
-      });
 
-      const event = await createCalendarEvent({
-        description: `Group Discussion for ${job.jobTitle}`,
-        start: startDateTime.toISOString(),
-        end: endDateTime.toISOString(),
-        interviewerEmails, // ✅ PASS INTERVIEWER EMAILS
+        if (!link && event?.hangoutLink) link = event.hangoutLink;
+        if (!link) link = "https://meet.google.com/new";
 
-        // ✅ FIX: use DB tokens (NOT env)
-        accessToken: googleData.accessToken,
-        refreshToken: googleData.refreshToken,
-      });
-
-      let link = null;
-
-      if (event?.conferenceData?.entryPoints?.length > 0) {
-        const video = event.conferenceData.entryPoints.find(
-          (e) => e.entryPointType === "video"
-        );
-        link = video?.uri;
+        meetingLink = link;
+        calendarEventId = event?.id;
+      } catch (calErr) {
+        console.error("GD Google Calendar event creation warning:", calErr.message);
       }
-
-      if (!link && event?.hangoutLink) link = event.hangoutLink;
-      if (!link) link = "https://meet.google.com/new";
-
-      meetingLink = link;
-      calendarEventId = event?.id;
     }
 
     if (!meetingLink && (meetingMode === "Online" || !meetingMode)) {
@@ -241,9 +245,28 @@ export const postGDScheduleByJob = async (req, res) => {
       );
     }
 
+    try {
+      const notificationData = {
+        candidateNames: candidates.map((c) =>
+          c.answers?.name || `${c.answers?.firstName || ""} ${c.answers?.lastName || ""}`.trim()
+        ),
+        date: schedule.interviewDate,
+        time: schedule.interviewTime,
+        role: job.jobTitle,
+        interviewId: schedule._id,
+        jobId: job._id,
+        companyCode: companyCode,
+        userId: req.user.id
+      };
+
+      await createScheduleNotification(notificationData);
+    } catch (notifErr) {
+      console.error("GD Notification Error:", notifErr.message);
+    }
+
     if (sendNotification && meetingLink) {
       const candidateNames = candidates.map(c => c.answers?.firstName || c.answers?.name || "Candidate").join(", ");
-      const candidateEmails = candidates.map(c => c.answers.email).filter(Boolean);
+      const candidateEmails = candidates.map(c => c.answers?.email || c.answers?.Email).filter(Boolean);
 
       if (candidateEmails.length > 0) {
         const emailTemplate = MailTemplates.gdScheduled({
@@ -259,30 +282,17 @@ export const postGDScheduleByJob = async (req, res) => {
           organizationName: adminUser?.organizationName
         });
 
-        await sendEmail({
+        void sendEmail({
           companyCode: companyCode,
-          from: job.hiringManager?.userId?.businessEmail, // ✅ FIXED TYPO
+          from: job.hiringManager?.userId?.businessEmail,
           to: candidateEmails.join(", "),
           subject: emailTemplate.subject,
           html: emailTemplate.html
+        }).catch((err) => {
+          console.error("Background GD Email Error:", err.message);
         });
       }
     }
-
-    const notificationData = {
-      candidateNames: candidates.map((c) =>
-        c.answers?.name || `${c.answers?.firstName || ""} ${c.answers?.lastName || ""}`
-      ),
-      date: schedule.interviewDate,
-      time: schedule.interviewTime,
-      role: job.jobTitle,
-      interviewId: schedule._id,
-      jobId: job._id,
-      companyCode: companyCode,
-      userId: req.user.id
-    }
-
-    await createScheduleNotification(notificationData);
 
     return res.status(201).json({
       success: true,

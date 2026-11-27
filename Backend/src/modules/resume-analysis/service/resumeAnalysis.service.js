@@ -2,7 +2,7 @@ import Application from "../../applications/applicantSchema.js";
 import Job from "../../jobs/job.model.js";
 import ResumeAnalysis from "../models/resumeAnalysis.model.js";
 import { ANALYSIS_STATUS } from "../constants/resumeAnalysis.constants.js";
-import { downloadResume, extractResumeUrl } from "../helpers/resumeDownloader.js";
+import { downloadResume, extractResumeAttachment } from "../helpers/resumeDownloader.js";
 import { extractTextFromPdf } from "../utils/pdfExtractor.js";
 import { buildJobDescription } from "../helpers/jobDescriptionBuilder.js";
 import { getResumeAnalysisPrompt } from "../prompts/resumeAnalysis.prompt.js";
@@ -58,12 +58,15 @@ class ResumeAnalysisService {
       await analysis.save();
 
       // 8. Download resume PDF from Cloudinary URL
-      const resumeUrl = extractResumeUrl(application.answers);
-      if (!resumeUrl) {
+      const resumeAttachment = extractResumeAttachment(application.answers);
+      if (!resumeAttachment?.url) {
         throw new Error("No resume PDF URL found in candidate answers.");
       }
 
-      const pdfBuffer = await downloadResume(resumeUrl);
+      const pdfBuffer = await downloadResume(resumeAttachment.url, {
+        companyCode: application.companyCode,
+        publicId: resumeAttachment.publicId,
+      });
 
       // 9. Extract text from PDF
       const resumeText = await extractTextFromPdf(pdfBuffer);

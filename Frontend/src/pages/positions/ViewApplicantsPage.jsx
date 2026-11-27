@@ -60,7 +60,7 @@ const ViewApplicantsPage = (props) => {
   const [duration, setDuration] = useState(30);
   const [autoInterval, setAutoInterval] = useState(0);
   const [isAutoScheduling, setIsAutoScheduling] = useState(false);
-  const [sendNotification, setSendNotification] = useState(false);
+  const [sendNotification, setSendNotification] = useState(true);
   const [hour, setHour] = useState("01");
   const [minute, setMinute] = useState("00");
   const [period, setPeriod] = useState("AM");
@@ -243,9 +243,9 @@ const ViewApplicantsPage = (props) => {
       scheduleId: selectedApplicant.scheduleId || null,
       jobId: jobId || selectedApplicant.jobId || null,
       candidateId:
-        selectedApplicant.candidateId ||
         selectedApplicant.applicationId ||
         selectedApplicant.id ||
+        selectedApplicant.candidateId ||
         null,
       candidateDetailsId: selectedApplicant.candidateDetailsId || null,
       name:
@@ -344,14 +344,15 @@ const ViewApplicantsPage = (props) => {
         sendNotification,
       });
 
-      showToast(res?.message || "Interview scheduled successfully", "success");
+      const schedMsg = res?.message || "Interview scheduled successfully";
+      showToast(schedMsg, schedMsg.toLowerCase().includes("email failed") ? "warning" : "success");
       setActiveTab("Interview");
       setShowSchedule(false);
       queryClient.refetchQueries({ queryKey: ["schedules"] });
-      queryClient.refetchQueries(["candidates", jobId]);
+      queryClient.refetchQueries({ queryKey: ["candidates", jobId] });
     } catch (err) {
       const errorData = err?.response?.data;
-      const msg = errorData?.message || err.message;
+      const msg = errorData?.message || errorData?.error || err.message;
       showToast(`Failed to schedule interview: ${msg}`, "error");
     }
   };
@@ -371,7 +372,7 @@ const ViewApplicantsPage = (props) => {
         interviewTime: `${hour}:${minute} ${period}`,
         durationMinutes: duration,
         meetingMode: mode,
-        sendNotification: true,
+        sendNotification,
       });
 
       showToast(res?.message || "Group Discussion scheduled successfully", "success");
@@ -453,11 +454,11 @@ const ViewApplicantsPage = (props) => {
         setShowAutoSchedule(false);
         setSelectedRows([]);
         queryClient.refetchQueries({ queryKey: ["schedules"] });
-        queryClient.refetchQueries(["candidates", jobId]);
+        queryClient.refetchQueries({ queryKey: ["candidates", jobId] });
       } else {
         showToast("Failed to schedule interviews", "error");
       }
-      queryClient.invalidateQueries(["all-schedules"]);
+      queryClient.invalidateQueries({ queryKey: ["all-schedules"] });
     } catch (err) {
       setIsAutoScheduling(false);
       showToast("Failed to process auto-scheduling", "error");

@@ -400,12 +400,15 @@ export function useViewApplicants() {
     onSuccess: () => {
       // Refresh interview list
       if (jobId) {
-        queryClient.invalidateQueries(["candidates", jobId]);
+        queryClient.invalidateQueries({ queryKey: ["candidates", jobId] });
       }
 
-      // Refresh schedules page with correct query keys
+      // Refresh schedules and dashboard pages with correct query keys
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["all-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["todayInterviewSchedule"] });
       queryClient.refetchQueries({ queryKey: scheduleQueryKeys.all });
       queryClient.refetchQueries({ queryKey: scheduleQueryKeys.lists() });
     },
@@ -422,6 +425,7 @@ export function useViewApplicants() {
       newDate,
       newTime,
       jobId,
+      meetingMode,
       durationMinutes,
       sendNotification,
     }) => {
@@ -437,6 +441,7 @@ export function useViewApplicants() {
           applicant,
           newDate,
           newTime,
+          meetingMode,
           sendNotification,
           durationMinutes,
         },
@@ -447,12 +452,15 @@ export function useViewApplicants() {
     onSuccess: () => {
       // Refresh interview list
       if (jobId) {
-        queryClient.invalidateQueries(["candidates", jobId]);
+        queryClient.invalidateQueries({ queryKey: ["candidates", jobId] });
       }
 
-      // Refresh schedules page with correct query keys
+      // Refresh schedules and dashboard pages with correct query keys
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["all-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["todayInterviewSchedule"] });
       queryClient.refetchQueries({ queryKey: scheduleQueryKeys.all });
       queryClient.refetchQueries({ queryKey: scheduleQueryKeys.lists() });
     },
@@ -539,6 +547,7 @@ export function useViewApplicants() {
       interviewTime,
       durationMinutes,
       meetingMode,
+      sendNotification = true,
     }) => {
       // ✅ AUTO GET FROM localStorage IF NOT PASSED
       if (!recruiterName) {
@@ -560,14 +569,21 @@ export function useViewApplicants() {
           interviewTime,
           durationMinutes,
           meetingMode,
-          sendNotification: true,
+          sendNotification,
         },
       );
 
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["candidates", jobId]);
+      if (jobId) {
+        queryClient.invalidateQueries({ queryKey: ["candidates", jobId] });
+      }
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["all-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["todayInterviewSchedule"] });
     },
   });
 

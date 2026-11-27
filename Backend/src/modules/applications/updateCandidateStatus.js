@@ -230,11 +230,13 @@ const updateCandidateStatus = async (req, res) => {
 
     await application.save({validateBeforeSave: false});
 
-    // EMAILS
-    let emailError = null;
-    try {
-      const admin = await userModel.findOne({companyCode, role: "SuperAdmin"}).lean();
+    // EMAILS (NON-BLOCKING)
+    const candidateEmail =
+      application?.answers?.email ||
+      application?.answers?.Email ||
+      candidate?.email;
 
+    if (candidateEmail) {
       const candidateName =
         `${application?.answers?.firstName || ""} ${application?.answers?.middleName || ""} ${application?.answers?.lastName || ""}`.replace(/\s+/g, ' ').trim() ||
         application?.answers?.full_name ||
@@ -242,10 +244,13 @@ const updateCandidateStatus = async (req, res) => {
         candidate?.name ||
         "Candidate";
 
-      if (mode === "shortlist" && candidate?.email) {
+      void (async () => {
+        try {
+          const admin = await userModel.findOne({ companyCode, role: "SuperAdmin" }).lean();
+          let tpl = null;
 
-        const tpl = MailTemplates.shortlisted(
-            {
+          if (mode === "shortlist") {
+            tpl = MailTemplates.shortlisted({
               candidateName,
               job,
               hiringManagerNotes,
@@ -253,21 +258,9 @@ const updateCandidateStatus = async (req, res) => {
               organizationName: admin?.organizationName,
               businessEmail: admin?.businessEmail,
               logo: admin?.companyLogo,
-            }
-          );
-
-        await sendEmail({
-          companyCode,
-          to: candidate.email,
-          bcc: tpl.bcc,
-          subject: tpl.subject,
-          html: tpl.html,
-        });
-      }
-
-      if (mode === "reject" && application?.answers?.email) {
-
-        const tpl = MailTemplates.rejection({
+            });
+          } else if (mode === "reject") {
+            tpl = MailTemplates.rejection({
               candidateName,
               job,
               rejectionReason,
@@ -275,46 +268,41 @@ const updateCandidateStatus = async (req, res) => {
               organizationName: admin?.organizationName,
               businessEmail: admin?.businessEmail,
               logo: admin?.companyLogo,
-            }
-          );
+            });
+          } else if (mode === "hire") {
+            tpl = MailTemplates.selected({
+              candidateName,
+              job,
+              organizationName: admin?.organizationName,
+              businessEmail: admin?.businessEmail,
+              logo: admin?.companyLogo,
+              joiningDate:
+                application.hiringDetails?.startDate?.toDateString() ||
+                new Date().toDateString(),
+              reportingTime: "9:30 AM",
+              workLocation: job.location || "Chennai Office",
+            });
+          }
 
-        await sendEmail({
-          companyCode,
-          to: application.answers.email,
-          bcc: tpl.bcc,
-          subject: tpl.subject,
-          html: tpl.html,
-        });
-      }
-
-      if (mode === "hire" && application?.answers?.email) {
-        const tpl = MailTemplates.selected({
-          candidateName,
-          job,
-          organizationName: admin?.organizationName,
-          businessEmail: admin?.businessEmail,
-          logo: admin?.companyLogo,
-          joiningDate: application.hiringDetails?.startDate?.toDateString() || new Date().toDateString(),
-          reportingTime: "9:30 AM",
-          workLocation: job.location || "Chennai Office"
-        });
-
-        await sendEmail({
-          companyCode,
-          to: application .answers .email,
-          bcc: tpl.bcc,
-          subject: tpl.subject,
-          html: tpl.html,
-        });
-      }
-    } catch (mailError) {
-      console.error("Email failed:", mailError.message);
-      emailError = mailError.message;
+          if (tpl) {
+            await sendEmail({
+              companyCode,
+              from: admin?.businessEmail,
+              to: candidateEmail,
+              bcc: tpl.bcc,
+              subject: tpl.subject,
+              html: tpl.html,
+            });
+          }
+        } catch (mailError) {
+          console.error("Background Status Email Failed:", mailError.message);
+        }
+      })();
     }
 
     return res.status(200).json({
       success: true,
-      message: emailError ? `Candidate ${mode}ed successfully, but email failed: ${emailError}` : `Candidate ${mode}ed successfully`,
+      message: `Candidate ${mode}ed successfully`,
       data: {
         applicationId: application._id,
         previousStatus,

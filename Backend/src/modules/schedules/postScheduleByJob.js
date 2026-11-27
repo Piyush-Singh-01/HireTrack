@@ -4,7 +4,7 @@ import Job from "../jobs/job.model.js";
 import MeetingSettings from "../settings/settings.model.js";
 import mongoose from "mongoose";
 import CandidateDetails from "./schedule.model.js";
-import { createCalendarEvent } from "../../common/utils/dashboardCalendar.js";
+import { createCalendarEvent, extractMeetingLink } from "../../common/utils/dashboardCalendar.js";
 import { sendEmail } from "../../common/utils/emailService.js";
 import NotificationSettings from "../notifications/notification.model.js";
 import { createScheduleNotification } from "../../common/utils/notifications.js";
@@ -52,6 +52,7 @@ const postScheduleByJob = async (req, res) => {
       interviewTime,
       meetingMode,
       durationMinutes = 30,
+      sendNotification = true,
     } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(jobId)) {
@@ -100,9 +101,6 @@ const postScheduleByJob = async (req, res) => {
 
     const time24 = normalizeTime(interviewTime);
 
-    //  const start = new Date(interviewDate);
-    // const [hour, minute] = time24.split(":");
-    // start.setHours(hour, minute, 0, 0);
     let datePart;
     if (typeof interviewDate === "string") {
       datePart = interviewDate.split("T")[0];
@@ -121,7 +119,7 @@ const postScheduleByJob = async (req, res) => {
 
     const end = new Date(start.getTime() + durationMinutes * 60000);
 
-    /* ===== GOOGLE CALENDAR FIRST (IMPORTANT FIX) ===== */
+    /* ===== GOOGLE CALENDAR (BOUNDED, NON-FATAL) ===== */
 
     let meetingLink = null;
     let calendarEventId = null;
@@ -139,7 +137,7 @@ const postScheduleByJob = async (req, res) => {
     if (googleData?.isConnected || hasGoogleTokens) {
       try {
         const interviewerEmails = [];
-        
+
         const addEmail = (user) => {
           if (!user) return;
           const email = user.Email || user.businessEmail || user.googleCalendar?.googleEmail || user.email;
@@ -153,17 +151,12 @@ const postScheduleByJob = async (req, res) => {
           job.hiringManagers.forEach(hm => addEmail(hm.userId));
         }
 
-        // Add Admin users
         const admins = await UserAndRole.find({ companyCode, Role: "Admin" }).lean();
         admins.forEach(admin => addEmail(admin));
 
-        // Add SuperAdmin user
         if (adminUser) addEmail(adminUser);
-
-        // Add logged-in user who scheduled the interview
         if (req.user) addEmail(req.user);
 
-        // Add candidate so they bypass the lobby
         if (candidate?.answers?.email) {
           addEmail({ email: candidate.answers.email });
         }
@@ -173,27 +166,12 @@ const postScheduleByJob = async (req, res) => {
           start: start.toISOString(),
           end: end.toISOString(),
           interviewerEmails,
-
-          // 🔥 PASS TOKENS (with env fallback)
           accessToken,
           refreshToken,
         });
 
-        let extractedLink = null;
-
-        if (event?.conferenceData?.entryPoints?.length > 0) {
-          const videoEntry = event.conferenceData.entryPoints.find(
-            (e) => e.entryPointType === "video"
-          );
-          extractedLink = videoEntry?.uri;
-        }
-
-        if (!extractedLink && event?.hangoutLink) {
-          extractedLink = event.hangoutLink;
-        }
-
-        meetingLink = extractedLink || null;
-        calendarEventId = event?.id;
+        meetingLink = extractMeetingLink(event);
+        calendarEventId = event?.id || null;
       } catch (calErr) {
         console.error("Google Calendar event creation warning:", calErr.message);
       }
@@ -214,8 +192,8 @@ const postScheduleByJob = async (req, res) => {
       jobId,
       companyCode,
       candidateIds: [candidate._id],
+      candidateNames: [candidateFullName],
       recruiterName: finalRecruiterName,
-      candidateName: candidateFullName,
       position: job.jobTitle,
       interviewDate,
       interviewTime: time24,
@@ -223,6 +201,7 @@ const postScheduleByJob = async (req, res) => {
       durationMinutes,
       meetingLink,
       calendarEventId,
+      sendNotification: sendNotification !== false,
       scheduleType: "Interview",
       status: "Start Interview",
     });
@@ -246,7 +225,7 @@ const postScheduleByJob = async (req, res) => {
         jobId,
         companyCode,
         candidateId: candidate._id,
-        candidateName: candidateFullName,   
+        Candidate: candidateFullName,
         Date: start,
         Time: time24,
         Position: job.jobTitle,
@@ -258,60 +237,57 @@ const postScheduleByJob = async (req, res) => {
       { upsert: true }
     );
 
-    /* ===== EMAIL ===== */
-    let emailError = null;
+    /* ===== NOTIFICATION ===== */
+    try {
+      const notificationData = {
+        name: candidateFullName,
+        date: interviewDate,
+        time: time24,
+        role: job.jobTitle,
+        interviewId: schedule._id,
+        jobId: job._id,
+        companyCode,
+        userId: req.user.id,
+      };
 
+      await createScheduleNotification(notificationData);
+    } catch (notifErr) {
+      console.error("Notification Error:", notifErr.message);
+    }
+
+    /* ===== EMAIL (NON-BLOCKING) ===== */
     const candidateEmail =
       candidate.answers?.email ||
       candidate.answers?.Email ||
       candidate.candidateId?.email;
 
-    if (candidateEmail) {
-      try {
-        const template = MailTemplates.interviewScheduled({
-          candidateName: candidateFullName,
-          job,
-          interviewDate,
-          time24,
-          meetingLink,
-          recruiterName: finalRecruiterName,
-          organizationName: adminUser?.organizationName,
-          businessEmail: adminUser?.businessEmail,
-          logo: adminUser?.companyLogo,
-        });
+    if (sendNotification !== false && candidateEmail) {
+      const template = MailTemplates.interviewScheduled({
+        candidateName: candidateFullName,
+        job,
+        interviewDate,
+        time24,
+        meetingLink,
+        recruiterName: finalRecruiterName,
+        organizationName: adminUser?.organizationName,
+        businessEmail: adminUser?.businessEmail,
+        logo: adminUser?.companyLogo,
+      });
 
-        await sendEmail({
-          companyCode,
-          to: candidateEmail,
-          bcc: template.bcc,
-          subject: template.subject,
-          html: template.html,
-        });
-
-      } catch (err) {
-        console.error("Email Error:", err.message);
-        emailError = err.message;
-      }
+      void sendEmail({
+        companyCode,
+        to: candidateEmail,
+        bcc: template.bcc,
+        subject: template.subject,
+        html: template.html,
+      }).catch((err) => {
+        console.error("Background Schedule Email Error:", err.message);
+      });
     }
-
-    /* ===== NOTIFICATION ===== */
-
-    const notificationData = {
-      name: candidate.answers?.name,
-      date: interviewDate,
-      time: time24,
-      role: job.jobTitle,
-      interviewId: schedule._id,
-      jobId: job._id,
-      companyCode,
-      userId: req.user.id,
-    };
-
-    await createScheduleNotification(notificationData);
 
     return res.status(201).json({
       success: true,
-      message: emailError ? `Interview scheduled successfully, but email failed: ${emailError}` : "Interview scheduled successfully",
+      message: "Interview scheduled successfully",
       data: schedule,
     });
 
